@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bitácora.exe</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Íconos de escritorio: decorativos, "position: fixed" (no afectan el
+       tamaño de la ventana), recortados y recoloreados a partir de assets/img/iconos.jpg -->
+  <button class="icono-escritorio" style="left:3%; top:6%;">
+    <img src="assets/img/icono-musica.png" alt="">
+    <span>Música</span>
+  </button>
+  <button class="icono-escritorio" style="left:3%; top:24%;">
+    <img src="assets/img/icono-internet.png" alt="">
+    <span>Internet</span>
+  </button>
+  <button class="icono-escritorio" style="left:3%; top:42%;">
+    <img src="assets/img/icono-bitacora.png" alt="">
+    <span>Bitácora</span>
+  </button>
+  <button class="icono-escritorio" style="left:3%; top:60%;">
+    <img src="assets/img/icono-juegos.png" alt="">
+    <span>Juegos</span>
+  </button>
+  <button class="icono-escritorio" style="right:4%; top:6%;">
+    <img src="assets/img/icono-img.png" alt="">
+    <span>Img</span>
+  </button>
+  <button class="icono-escritorio" style="right:4%; bottom:6%;">
+    <img src="assets/img/icono-papelera.png" alt="">
+    <span>Papelera</span>
+  </button>
+
+  <!-- Mascota: perrito pixel art. Es "position: fixed", así que no forma
+       parte del layout y nunca puede afectar el tamaño de la ventana. -->
+  <div class="mascota"></div>
+
+  <!-- Ventana fija: es la página completa, no se abre desde un escritorio -->
+  <div class="ventana" id="ventana">
+    <div class="barra-titulo">
+      <div class="botones">
+        <span class="punto llena"></span>
+        <span class="punto"></span>
+        <span class="punto"></span>
+      </div>
+      <span class="titulo">BITÁCORA.EXE</span>
+      <span class="espacio"></span>
+    </div>
+    <div class="cuerpo">
+      <!-- Sidebar: lista de categorías, estilo "Archivo" -->
+      <aside class="sidebar">
+        <p class="sidebar-titulo">ARCHIVO</p>
+        <ul class="lista-categorias" id="lista-categorias"></ul>
+      </aside>
+      <!-- Contenido: cabecera con el nombre de la categoría + galería -->
+      <div class="contenido">
+        <div class="contenido-header">
+          <h2 id="titulo-categoria"></h2>
+          <span class="contador" id="contador-entradas"></span>
+        </div>
+        <div class="galeria" id="galeria"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

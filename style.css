@@ -1,0 +1,483 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
+
+:root {
+  --verde: #5ec26a;
+  --crema: #f4efe2;
+  --crema-clara: #fbf7ec;
+  --tinta: #141414;
+  --gris-estrella: #cbc4b4;
+  --amarillo-estrella: #ffc93c;
+  /* Flechita de mouse, negra, para toda la página (normal y clickeable). */
+  --cursor-flecha: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='24' viewBox='0 0 22 24'%3E%3Cpath d='M3 2 L3 19 L7.2 15.2 L10.3 21.8 L13.6 20.2 L10.5 13.8 L17 13.8 Z' fill='%23141414' stroke='%23141414' stroke-width='1.8' stroke-linejoin='round'/%3E%3C/svg%3E") 3 2;
+}
+
+html, body { cursor: var(--cursor-flecha), auto; }
+button, .cat-item, .card, .etiqueta-genero, summary {
+  cursor: var(--cursor-flecha), pointer;
+}
+
+* { box-sizing: border-box; }
+
+/* El recuadro de foco solo debe verse en los campos donde se escribe. */
+button, .cat-item, .card, .etiqueta-genero, summary { outline: none; }
+/* Y el cursor de texto (I-beam) no debe aparecer en ningún lado de la
+   página excepto donde se puede escribir: en vez de ir tapando elemento
+   por elemento, se desactiva la selección de texto en todo y se vuelve a
+   activar solo en los campos de escritura. */
+body { user-select: none; }
+input, textarea { user-select: text; }
+/* Firefox deja un borde punteado dentro del botón después de hacer clic;
+   "outline: none" no lo saca porque es una propiedad aparte. */
+button::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+input:focus, textarea:focus, select:focus {
+  outline: 2px solid var(--tinta);
+  outline-offset: 1px;
+}
+
+/* ---------- BARRA DE SCROLL (misma estética: crema + borde negro grueso) ---------- */
+* {
+  scrollbar-width: auto;              /* Firefox */
+  scrollbar-color: var(--tinta) var(--crema-clara);
+}
+::-webkit-scrollbar { width: 14px; height: 14px; }
+::-webkit-scrollbar-track {
+  background: var(--crema-clara);
+  border-left: 2px solid var(--tinta);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--crema);
+  border: 2px solid var(--tinta);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: #e6ddc4; }
+::-webkit-scrollbar-corner { background: var(--crema-clara); }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--verde);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  color: var(--tinta);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+}
+
+/* ---------- ÍCONOS DE ESCRITORIO (decorativos) ----------
+   "position: fixed" + z-index negativo: quedan detrás de la ventana, así que
+   en pantallas angostas la ventana los tapa en vez de superponerse feo
+   encima del sidebar; y al ser "fixed" tampoco afectan su tamaño. */
+.icono-escritorio {
+  position: fixed;
+  z-index: -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 84px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+}
+.icono-escritorio img {
+  width: auto;
+  height: auto;
+  max-width: 56px;
+  max-height: 56px;
+}
+.icono-escritorio:hover img { filter: brightness(0.8); }
+.icono-escritorio span {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--tinta);
+  background: var(--crema);
+  border: 2px solid var(--tinta);
+  border-radius: 4px;
+  padding: 2px 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ---------- MASCOTA (perrito pixel art) ----------
+   position: fixed la saca del flujo del documento: nunca participa del
+   flex de <body>, así que jamás puede achicar o mover la ventana.
+   El tamaño se calcula solo, según cuánto margen quede al costado de la
+   ventana: si hay de sobra usa el máximo (220px); si el margen se achica
+   (ventana del navegador angosta), el perrito se achica con él, así nunca
+   queda cortado ni fuera de la pantalla.
+
+   Sprite: tira de 4 cuadros en una fila ("perrito-tira.png", armada a
+   partir de 1.png..4.png en ese orden — el orden que marcaste con los
+   nombres). Cada cuadro se recortó por su contenido real y se alineó por
+   el lado de la cabeza (estable) + por abajo, así el cuerpo no se mueve y
+   solo se nota el movimiento de la cola.
+   La animación recorre 0%→100% (cuadros 1,2,3,4) y con "alternate" vuelve
+   100%→0% (4,3,2,1), en loop: 1234-4321-1234... */
+.mascota {
+  --ventana-ancho: min(1400px, 100vw - 56px);
+  --espacio-libre: calc((100vw - var(--ventana-ancho)) / 2 - 18px); /* margen al costado de la ventana, menos 18px de separación */
+
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;   /* es decorativa, no bloquea clics */
+  bottom: 7vh;             /* mismo cálculo que centra .ventana: (100vh - 86vh) / 2 */
+  right: calc(100vw - var(--espacio-libre));  /* ancla el borde derecho, no depende del ancho propio */
+  width: clamp(56px, var(--espacio-libre), 220px);
+  aspect-ratio: 1002 / 759;
+  background-image: url("assets/img/perrito-tira.png");
+  background-repeat: no-repeat;
+  background-size: 400% 100%;     /* relativo al tamaño propio: se reacomoda solo al achicarse */
+  background-position: 0% 0%;
+  animation: mascota-cola 1.6s steps(1) infinite;
+}
+/* Los 7 pasos del ciclo 1-2-3-4-3-2-1 escritos a mano: con solo "from/to" +
+   alternate, el cuadro 4 quedaba en el instante exacto donde termina la
+   ida y empieza la vuelta, así que nunca se llegaba a ver. */
+@keyframes mascota-cola {
+  0%      { background-position: 0% 0%; }        /* 1 */
+  16.667% { background-position: 33.333% 0%; }    /* 2 */
+  33.333% { background-position: 66.667% 0%; }    /* 3 */
+  50%     { background-position: 100% 0%; }       /* 4 */
+  66.667% { background-position: 66.667% 0%; }    /* 3 */
+  83.333% { background-position: 33.333% 0%; }    /* 2 */
+  100%    { background-position: 0% 0%; }         /* 1 (cierra el loop) */
+}
+
+/* ---------- VENTANA (ocupa la pantalla, siempre visible) ---------- */
+.ventana {
+  width: 100%;
+  max-width: 1400px;
+  height: 86vh;
+  background: var(--crema);
+  border: 3px solid var(--tinta);
+  border-radius: 14px;
+  box-shadow: 10px 10px 0 var(--tinta);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.barra-titulo {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 3px solid var(--tinta);
+  flex: none;
+}
+.botones { display: flex; gap: 7px; width: 90px; }
+.espacio { width: 90px; }
+.punto {
+  width: 12px; height: 12px;
+  border: 2px solid var(--tinta);
+  border-radius: 50%;
+  display: inline-block;
+}
+.punto.llena { background: var(--tinta); }
+.titulo {
+  flex: 1; text-align: center;
+  font-weight: 700; font-size: 15px; letter-spacing: 1px;
+}
+
+/* ---------- CUERPO: sidebar + contenido ---------- */
+.cuerpo {
+  flex: 1;
+  display: flex;
+  min-height: 0;               /* permite que el contenido scrollee adentro */
+}
+
+.sidebar {
+  width: 210px;
+  flex: none;
+  padding: 18px 14px;
+  border-right: 3px solid var(--tinta);
+  overflow-y: auto;
+}
+.sidebar-titulo {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding-bottom: 8px;
+  border-bottom: 3px solid var(--tinta);
+}
+.lista-categorias { list-style: none; margin: 12px 0 0; padding: 0; }
+.cat-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 4px;
+  cursor: var(--cursor-flecha), pointer;
+  border-radius: 5px;
+  font-size: 15px;
+}
+.cat-item:hover { background: rgba(20,20,20,0.06); }
+.cat-item.activa { font-weight: 700; }
+.cat-icono {
+  width: 18px; height: 18px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cat-icono svg { display: block; }
+
+.contenido {
+  flex: 1;
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+.contenido-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 3px solid var(--tinta);
+}
+.contenido-header h2 { margin: 0; font-size: 20px; }
+.contador { font-size: 14px; font-weight: 500; }
+
+/* ---------- GALERÍA Y TARJETAS (portadas apaisadas) ---------- */
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));  /* tarjetas más anchas */
+  gap: 16px;
+  margin-top: 14px;
+}
+.card {
+  border: 3px solid var(--tinta);
+  border-radius: 8px;
+  background: var(--crema-clara);
+  cursor: var(--cursor-flecha), pointer;
+  overflow: hidden;
+  transition: transform 0.08s;
+}
+.card:hover { transform: translate(-2px, -2px); }
+.card.arrastrando { opacity: 0.4; }
+.card.sobre-destino { outline: 3px dashed var(--tinta); outline-offset: 3px; }
+.portada {
+  aspect-ratio: 3 / 2;        /* portada apaisada, un poco más alta que 16:9 */
+  border-bottom: 3px solid var(--tinta);
+  background-color: var(--crema);
+  background-image: radial-gradient(var(--tinta) 1.1px, transparent 1.3px);
+  background-size: 5px 5px;
+}
+.card-info { padding: 9px; }
+.card-titulo { font-weight: 700; font-size: 15px; margin: 0 0 4px; }
+.card-autor { font-size: 12px; font-weight: 500; margin: 0 0 4px; opacity: 0.7; }
+.card-sinopsis {
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0 0 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card .estrellas { font-size: 16px; }
+.card-fecha-vista { font-size: 11.5px; margin: 5px 0 0; opacity: 0.65; }
+.vacio { font-size: 15px; margin-top: 14px; }
+#btn-agregar { display: block; margin: 14px 0 18px; }
+
+/* ---------- ESTRELLAS (con mitades) ---------- */
+.estrellas-cont { display: inline-flex; }
+.estrella {
+  position: relative;
+  display: inline-block;
+  width: 1em; height: 1em;
+  line-height: 1;
+}
+.e-fondo, .e-frente {
+  position: absolute; top: 0; left: 0;
+  width: 1em; height: 1em;
+}
+.e-fondo svg, .e-frente svg {
+  display: block;
+  width: 1em; height: 1em;
+}
+.e-fondo { color: var(--gris-estrella); }   /* estrella "vacía" */
+.e-frente {                                  /* estrella llena, recortada por su ancho */
+  overflow: hidden;
+  color: var(--amarillo-estrella);
+}
+.editable .estrella { cursor: var(--cursor-flecha), pointer; }
+.zona {                                      /* zonas invisibles para clickear media/entera */
+  position: absolute; top: 0; height: 100%; width: 50%;
+}
+.zona.izq { left: 0; }
+.zona.der { left: 50%; }
+
+/* ---------- FICHA (detalle) ---------- */
+.ficha-acciones { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+.btn-eliminar {
+  margin-left: auto;          /* separado a la derecha del resto */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+  color: #a32d2d;
+  border-color: #a32d2d;
+  box-shadow: 3px 3px 0 #a32d2d;
+}
+.ficha-cabecera { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+.ficha-portada {
+  width: 140px; height: 200px; flex: none;
+  border: 3px solid var(--tinta); border-radius: 6px;
+  background-color: var(--crema);
+  background-image: radial-gradient(var(--tinta) 1.1px, transparent 1.3px);
+  background-size: 5px 5px;
+}
+.ficha-datos { flex: 1; min-width: 200px; }
+.ficha-titulo { margin: 0; font-size: 20px; }
+.ficha-sub { margin: 0 0 8px; font-size: 13px; }
+.rating-edit { font-size: 28px; margin-bottom: 10px; }
+.dato { margin: 3px 0; font-size: 14px; }
+.dato b { font-weight: 700; }
+.ficha-label { font-weight: 700; font-size: 13px; margin: 14px 0 3px; }
+.ficha-texto { margin: 0; font-size: 14px; line-height: 1.45; }
+
+/* El comentario va dentro de un <details>: cerrado por defecto, con flechita. */
+.ficha-comentario-desplegable { margin-top: 14px; }
+.ficha-comentario-desplegable summary {
+  cursor: var(--cursor-flecha), pointer;
+  font-weight: 700;
+  font-size: 13px;
+  list-style: none;
+}
+.ficha-comentario-desplegable summary::-webkit-details-marker { display: none; }
+.ficha-comentario-desplegable summary::before { content: "▸ "; }
+.ficha-comentario-desplegable[open] summary::before { content: "▾ "; }
+.ficha-comentario {
+  margin-top: 6px;
+  padding: 10px 0; font-size: 14px; line-height: 1.45;
+}
+
+/* ---------- BOTONES Y FORMULARIO ---------- */
+.btn-retro {
+  font-family: inherit; font-weight: 700; font-size: 14px;
+  color: var(--tinta); background: var(--crema);
+  border: 3px solid var(--tinta); border-radius: 6px;
+  padding: 6px 12px; cursor: var(--cursor-flecha), pointer;
+  box-shadow: 3px 3px 0 var(--tinta);
+  display: inline-block;   /* para que funcione igual en <button> y <label> */
+}
+.btn-retro:hover { filter: brightness(0.93); }
+.btn-retro:active { box-shadow: none; transform: translate(3px, 3px); }
+
+/* ---------- FORMULARIO: lista de propiedades (ícono + etiqueta + valor) ---------- */
+.formulario { display: flex; flex-direction: column; margin-top: 14px; }
+.propiedad {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 5px 2px;
+  border-bottom: 1px solid rgba(20, 20, 20, 0.08);
+}
+.propiedad-icono {
+  flex: none;
+  width: 18px; height: 18px;
+  margin-top: 5px;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0.65;
+}
+.propiedad-label {
+  flex: 0 0 150px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tinta);
+  margin-top: 7px;
+}
+.propiedad-valor { flex: 1; min-width: 0; }
+
+/* El input/textarea no tiene borde ni fondo propio: solo se nota al pasar
+   el mouse o al escribir, como en una lista de propiedades. */
+.formulario input[type="text"],
+.formulario textarea {
+  display: block;
+  width: 100%;
+  font-family: inherit; font-size: 14px; color: var(--tinta);
+  border: none; background: transparent;
+  padding: 5px 6px; border-radius: 4px;
+  resize: vertical;
+}
+.formulario input[type="text"]:hover,
+.formulario textarea:hover {
+  background: rgba(20, 20, 20, 0.06);
+}
+.formulario input[type="text"]:focus,
+.formulario textarea:focus {
+  background: rgba(20, 20, 20, 0.06);
+  outline-offset: -2px;   /* sin borde propio: el foco queda hacia adentro */
+}
+/* El <input type="file"> real queda oculto (pero accesible); el "botón"
+   visible es un <label for="f-archivo"> con estilo .btn-retro, y el nombre
+   del archivo lo mostramos nosotros en #f-archivo-nombre (así no aparece
+   el texto nativo del navegador tipo "Sin archivos seleccionados"). */
+.input-archivo-oculto {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.nombre-archivo {
+  margin-left: 10px;
+  font-size: 13px;
+  color: var(--tinta);
+  opacity: 0.75;
+}
+
+.form-acciones { display: flex; gap: 10px; margin-top: 14px; }
+
+/* ---------- MODAL DE CONFIRMACIÓN (mismo look que la ventana) ---------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 20, 20, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: 20px;
+}
+.modal-caja {
+  background: var(--crema);
+  border: 3px solid var(--tinta);
+  border-radius: 12px;
+  box-shadow: 8px 8px 0 var(--tinta);
+  padding: 20px 22px;
+  max-width: 340px;
+  width: 100%;
+}
+.modal-mensaje { margin: 0 0 18px; font-size: 15px; line-height: 1.45; }
+.modal-acciones { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* ---------- ETIQUETAS DE GÉNERO ---------- */
+.etiquetas-form { display: flex; flex-wrap: wrap; gap: 7px; }
+.etiqueta-genero {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 8px;         /* más cuadrada, pero no del todo */
+  border: 2px solid var(--tinta);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tinta);
+}
+.etiquetas-form .etiqueta-genero { cursor: var(--cursor-flecha), pointer; }
+.etiquetas-form .etiqueta-genero.inactiva { opacity: 0.45; }
+.etiqueta-quitar {
+  margin-left: 6px;
+  font-weight: 700;
+  opacity: 0.55;
+}
+.etiqueta-quitar:hover { opacity: 1; }
+.etiqueta-nueva { display: flex; gap: 8px; margin-top: 10px; }
+.etiqueta-nueva input { flex: 1; }
