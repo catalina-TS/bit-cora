@@ -367,31 +367,36 @@ function mostrarFormulario(indice) {
     ? '<img src="' + portadaSubida + '" style="max-width:100px;border:2px solid var(--tinta);border-radius:5px;margin-top:6px">'
     : "";
 
+  // autocomplete="off" en cada input/textarea: sin esto, el navegador
+  // "recuerda" cosas que escribí antes en campos parecidos y las sugiere -
+  // no es un dato mío que quede guardado en ningún lado (eso ya no pasa
+  // desde que se borró localStorage), es el propio navegador ofreciéndome
+  // autocompletar. Con esto se lo desactivo.
   galeria.innerHTML =
     '<div class="formulario">'
-    + filaPropiedad("texto", "Título", '<input id="f-titulo" type="text" value="' + val("titulo") + '">')
-    + filaPropiedad("texto", "Título en español", '<input id="f-tituloEs" type="text" value="' + val("tituloEs") + '">')
-    + filaPropiedad("persona", "Director/a", '<input id="f-director" type="text" value="' + val("director") + '">')
-    + filaPropiedad("edificio", "Estudio", '<input id="f-estudio" type="text" value="' + val("estudio") + '">')
-    + filaPropiedad("calendario", "Fecha de publicación", '<input id="f-anio" type="text" value="' + val("anio") + '">')
+    + filaPropiedad("texto", "Título", '<input id="f-titulo" type="text" autocomplete="off" value="' + val("titulo") + '">')
+    + filaPropiedad("texto", "Título en español", '<input id="f-tituloEs" type="text" autocomplete="off" value="' + val("tituloEs") + '">')
+    + filaPropiedad("persona", "Director/a", '<input id="f-director" type="text" autocomplete="off" value="' + val("director") + '">')
+    + filaPropiedad("edificio", "Estudio", '<input id="f-estudio" type="text" autocomplete="off" value="' + val("estudio") + '">')
+    + filaPropiedad("calendario", "Fecha de publicación", '<input id="f-anio" type="text" autocomplete="off" value="' + val("anio") + '">')
     + filaPropiedad("etiqueta", "Género",
         '<div class="etiquetas-form" id="f-etiquetas"></div>'
         + '<div class="etiqueta-nueva">'
-        +   '<input id="f-genero-nuevo" type="text" placeholder="nueva etiqueta...">'
+        +   '<input id="f-genero-nuevo" type="text" autocomplete="off" placeholder="nueva etiqueta...">'
         +   '<button type="button" class="btn-retro" id="f-genero-agregar">+ etiqueta</button>'
         + '</div>')
-    + filaPropiedad("bandera", "País", '<input id="f-pais" type="text" value="' + val("pais") + '">')
-    + filaPropiedad("calendario", "Fecha en que la vi", '<input id="f-fechaVista" type="text" value="' + val("fechaVista") + '">')
+    + filaPropiedad("bandera", "País", '<input id="f-pais" type="text" autocomplete="off" value="' + val("pais") + '">')
+    + filaPropiedad("calendario", "Fecha en que la vi", '<input id="f-fechaVista" type="text" autocomplete="off" value="' + val("fechaVista") + '">')
     + filaPropiedad("estrella", "Calificación", '<div class="rating-edit" id="f-rating">' + estrellasEditablesHTML(estrellasFormulario) + '</div>')
-    + filaPropiedad("parrafo", "Sinopsis", '<textarea id="f-sinopsis" rows="3">' + texto("sinopsis") + '</textarea>')
-    + filaPropiedad("comentario", "Mi comentario", '<textarea id="f-comentario" rows="3">' + texto("comentario") + '</textarea>')
+    + filaPropiedad("parrafo", "Sinopsis", '<textarea id="f-sinopsis" rows="3" autocomplete="off">' + texto("sinopsis") + '</textarea>')
+    + filaPropiedad("comentario", "Mi comentario", '<textarea id="f-comentario" rows="3" autocomplete="off">' + texto("comentario") + '</textarea>')
     + filaPropiedad("imagen", "Portada",
         '<label class="btn-retro" for="f-archivo">Elegir imagen</label>'
         + (portadaSubida || linkPortada ? ' <button type="button" class="btn-retro btn-eliminar" id="f-quitar-imagen">Quitar imagen</button>' : '')
         + '<input id="f-archivo" type="file" accept="image/*" class="input-archivo-oculto">'
         + '<span class="nombre-archivo" id="f-archivo-nombre">' + (portadaSubida ? "Imagen actual" : "Sin imagen") + '</span>'
         + '<div id="f-preview">' + previewInicial + '</div>'
-        + '<input id="f-portada" type="text" placeholder="...o pega un link de imagen" value="' + escaparAtributo(linkPortada) + '">')
+        + '<input id="f-portada" type="text" autocomplete="off" placeholder="...o pega un link de imagen" value="' + escaparAtributo(linkPortada) + '">')
     + '<p id="f-error" style="color:#a32d2d;font-size:13px;margin:6px 0 0;"></p>'
     + '<div class="form-acciones">'
     +   '<button class="btn-retro" id="f-guardar">Guardar</button>'
