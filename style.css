@@ -1,21 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
 
+/* ---------- PALETA DE COLORES ----------
+   Todos los colores de la página salen de acá (nada de colores sueltos
+   repetidos por el archivo): si algún día quiero cambiar el verde de fondo
+   o el crema de la ventana, esta es la única línea que toco. */
 :root {
-  --verde: #5ec26a;
-  --crema: #f4efe2;
-  --crema-clara: #fbf7ec;
-  --tinta: #141414;
-  --gris-estrella: #cbc4b4;
-  --amarillo-estrella: #ffc93c;
+  --verde: #5ec26a;              /* fondo de toda la página, detrás de la ventana */
+  --crema: #f4efe2;               /* fondo de la ventana y de los botones */
+  --crema-clara: #fbf7ec;         /* fondo un poco más claro, para portadas y scrollbar */
+  --tinta: #141414;               /* el "negro" de todos los textos y bordes */
+  --gris-estrella: #cbc4b4;       /* estrella vacía */
+  --amarillo-estrella: #ffc93c;   /* estrella llena */
   /* Flechita de mouse, negra, para toda la página (normal y clickeable). */
   --cursor-flecha: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='24' viewBox='0 0 22 24'%3E%3Cpath d='M3 2 L3 19 L7.2 15.2 L10.3 21.8 L13.6 20.2 L10.5 13.8 L17 13.8 Z' fill='%23141414' stroke='%23141414' stroke-width='1.8' stroke-linejoin='round'/%3E%3C/svg%3E") 3 2;
 }
 
+/* ---------- CURSOR Y RESETS BASE ----------
+   Uso mi propia flechita (--cursor-flecha) en vez de la del sistema, tanto
+   en modo normal como sobre elementos clickeables. */
 html, body { cursor: var(--cursor-flecha), auto; }
 button, .cat-item, .card, .etiqueta-genero, summary {
   cursor: var(--cursor-flecha), pointer;
 }
 
+/* Con esto, el padding y el borde de un elemento se descuentan de su ancho
+   declarado en vez de sumarse - así los cálculos de layout no me sorprenden. */
 * { box-sizing: border-box; }
 
 /* El recuadro de foco solo debe verse en los campos donde se escribe. */

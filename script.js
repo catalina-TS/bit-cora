@@ -1,5 +1,12 @@
-// ===== 1. CATEGORÍAS =====
-// Cada una: su id interno y el nombre que se muestra en el sidebar.
+// Dirección de mi backend (bit-cora-backend, corriendo con "node index.js").
+// Todo fetch() de este archivo apunta acá. El día que lo suba a internet
+// (Render u otro hosting), esta es la ÚNICA línea que tengo que cambiar.
+const API_URL = "https://bit-cora-backend-hg16.onrender.com";
+
+// ===== CATEGORÍAS =====
+// La lista maestra de secciones de mi bitácora. "id" es el valor técnico que
+// uso en las URLs del backend y como clave interna; "nombre" es lo que se ve
+// en pantalla. Si algún día agrego una categoría nueva, es acá donde la sumo.
 const categorias = [
   { id: "peliculas", nombre: "Películas" },
   { id: "juegos",    nombre: "Juegos" },
@@ -10,6 +17,7 @@ const categorias = [
 ];
 
 // A partir de las categorías armamos los títulos "# películas", "# series"...
+// (un objeto {peliculas: "# películas", series: "# series", ...}).
 const titulos = {};
 categorias.forEach(function (c) { titulos[c.id] = "# " + c.nombre.toLowerCase(); });
 
@@ -17,51 +25,41 @@ categorias.forEach(function (c) { titulos[c.id] = "# " + c.nombre.toLowerCase();
 // a cada etiqueta nueva que se crea (y se repiten en ciclo si hay muchas).
 const paletaEtiquetas = ["#cfe8f3", "#ffe3c2", "#d6e0ff", "#ffd3ea", "#ded4ff", "#d8f0d3", "#ffe9a8"];
 
-// ===== 2. DATOS POR DEFECTO =====
-const datosPorDefecto = {
-  peliculas: [
-    { titulo: "Perfect Days", tituloEs: "Perfect Days", director: "Wim Wenders",
-      estudio: "Master Mind", anio: 2023, generos: ["Drama"], pais: "Japón",
-      estrellas: 5, sinopsis: "Un limpiador de baños en Tokio encuentra belleza en su rutina.",
-      comentario: "Me dejó en calma. Una joya silenciosa.", portada: "", fechaVista: "2025" },
-    { titulo: "La Sustancia", tituloEs: "La Sustancia", director: "Coralie Fargeat",
-      estudio: "Working Title", anio: 2024, generos: ["Terror"], pais: "Francia",
-      estrellas: 4.5, sinopsis: "Una estrella en decadencia prueba un suero misterioso.",
-      comentario: "Perturbadora y genial.", portada: "", fechaVista: "2025" }
-  ],
-  series: [], libros: [], juegos: [], mangas: [], anime: [],
-  // Etiquetas de género compartidas por todas las categorías.
-  generos: [
-    { nombre: "Drama", color: paletaEtiquetas[0] },
-    { nombre: "Terror", color: paletaEtiquetas[1] }
-  ]
-};
+// ===== GUARDADO: YA NO ES localStorage =====
+// Antes acá vivían "datosPorDefecto" y la función guardar() que escribía en
+// localStorage (el cajón secreto de CADA navegador). Se borraron a propósito:
+// ahora la única fuente de verdad son mi base de datos Postgres (en Neon) y
+// mi servidor Express (bit-cora-backend). Todo se pide/guarda con fetch(),
+// nunca con localStorage. Así puedo entrar desde cualquier compu y ver lo mismo.
 
-// ===== 3. GUARDADO EN EL NAVEGADOR =====
-let data = JSON.parse(localStorage.getItem("bitacora")) || datosPorDefecto;
-if (!data.generos) data.generos = [];  // por si venías de una versión sin etiquetas
-function guardar() { localStorage.setItem("bitacora", JSON.stringify(data)); }
-
-// Busca una etiqueta de género por nombre (sin importar mayúsculas); si no
-// existe la crea con el siguiente color de la paleta y la deja guardada.
-function obtenerOCrearGenero(nombre) {
+// Busca una etiqueta de género por nombre (sin importar mayúsculas) en la
+// lista que YA traje del backend (generosDisponibles). Si no existe, la creo
+// en el backend con el siguiente color de la paleta, y la agrego a mi copia
+// local (generosDisponibles) para no tener que volver a pedirla.
+async function obtenerOCrearGenero(nombre) {
   const limpio = (nombre || "").trim();
   if (!limpio) return null;
-  let tag = data.generos.find(function (g) { return g.nombre.toLowerCase() === limpio.toLowerCase(); });
+  let tag = generosDisponibles.find(function (g) { return g.nombre.toLowerCase() === limpio.toLowerCase(); });
   if (!tag) {
-    tag = { nombre: limpio, color: paletaEtiquetas[data.generos.length % paletaEtiquetas.length] };
-    data.generos.push(tag);
-    guardar();
+    const respuesta = await fetch(API_URL + "/generos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nombre: limpio, color: paletaEtiquetas[generosDisponibles.length % paletaEtiquetas.length] })
+    });
+    tag = await respuesta.json();
+    generosDisponibles.push(tag);
   }
   return tag;
 }
 
 // Escapa comillas y "&" para poder meter texto dentro de value="...".
+// Sin esto, si un título tuviera comillas, rompería el HTML del input.
 function escaparAtributo(s) {
   return String(s || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
 
 // Íconos chicos para cada fila del formulario (estilo lista de propiedades).
+// Son SVG escritos a mano para no depender de ninguna librería de íconos externa.
 const iconosPropiedad = {
   texto: '<svg viewBox="0 0 18 18" width="15" height="15" fill="none" stroke="#141414" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="10" y2="14"/></svg>',
   persona: '<svg viewBox="0 0 18 18" width="15" height="15" fill="none" stroke="#141414" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="3"/><path d="M3 16c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg>',
@@ -74,7 +72,10 @@ const iconosPropiedad = {
   comentario: '<svg viewBox="0 0 18 18" width="15" height="15" fill="none" stroke="#141414" stroke-width="1.5" stroke-linejoin="round"><path d="M3 4 h12 v8 H8 l-3 3 v-3 H3 Z"/></svg>',
   imagen: '<svg viewBox="0 0 18 18" width="15" height="15" fill="none" stroke="#141414" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="3" width="12" height="12" rx="1.5"/><circle cx="7" cy="7" r="1.2" fill="#141414" stroke="none"/><path d="M4 13 l3.5-4 2.5 3 2-2.5 2.5 3.5" stroke-linecap="round"/></svg>'
 };
-// Arma una fila "ícono + etiqueta + valor" del formulario.
+
+// Arma una fila "ícono + etiqueta + valor" del formulario (una por cada
+// campo: Título, Director/a, Género, etc.). La uso una vez por cada input
+// para no repetir el mismo HTML de envoltorio catorce veces.
 function filaPropiedad(icono, etiqueta, valorHtml) {
   return '<div class="propiedad">'
     + '<span class="propiedad-icono">' + iconosPropiedad[icono] + '</span>'
@@ -83,21 +84,31 @@ function filaPropiedad(icono, etiqueta, valorHtml) {
     + '</div>';
 }
 
-// ===== 4. ELEMENTOS Y ESTADO =====
+// ===== ELEMENTOS DEL HTML Y ESTADO GLOBAL =====
+// Referencias a los elementos del HTML que voy a estar reescribiendo todo
+// el tiempo. Las guardo una sola vez acá para no llamar getElementById en
+// cada función.
 const galeria = document.getElementById("galeria");
 const tituloCategoria = document.getElementById("titulo-categoria");
 const contadorEntradas = document.getElementById("contador-entradas");
 const listaCategorias = document.getElementById("lista-categorias");
 
-let categoriaActual = null;  // categoría abierta
-let fichaActual = null;      // índice de la película abierta en su ficha
+// Variables de estado: van cambiando mientras uso la app, y varias funciones
+// las leen/escriben. No son datos que se guarden en ningún lado - son solo
+// "en qué pantalla/paso estoy ahora mismo".
+let categoriaActual = null;  // categoría abierta (ej: "peliculas")
+let fichaActual = null;      // índice (en entradasActuales) de la película abierta en su ficha
 let portadaSubida = "";      // imagen subida desde el computador (mientras el formulario está abierto)
 let indiceEditando = null;   // índice de la ficha que se está editando (null = ficha nueva)
 let estrellasFormulario = 0; // calificación elegida en el formulario, con clic directo
 let generosSeleccionados = []; // nombres de las etiquetas elegidas en el formulario actual
 let indiceArrastrado = null; // índice de la tarjeta que se está arrastrando en la grilla
+let entradasActuales = [];   // lo que trajo el backend de la categoría abierta ahora mismo
+                              // (se llena en recargarEntradasActuales(); YA NO es data[categoriaActual])
+let generosDisponibles = []; // lista de etiquetas de género que trajo el backend
+                              // (se llena en cargarGeneros(); YA NO es data.generos)
 
-// ===== 5. SIDEBAR: lista de categorías ("ARCHIVO") =====
+// ===== SIDEBAR: lista de categorías ("ARCHIVO") =====
 // Un ícono de línea por categoría (estilo Feather), 18x18, mismo trazo para todos.
 const iconosCategoria = {
   peliculas: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#141414" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>',
@@ -112,6 +123,8 @@ const iconosCategoria = {
 // para heredar el rojo definido en .btn-eliminar).
 const iconoPapelera = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
 
+// Dibuja la lista "ARCHIVO" del sidebar a partir de "categorias", y le
+// engancha un clic a cada una para abrirla. Se llama una sola vez al arrancar.
 function construirSidebar() {
   listaCategorias.innerHTML = categorias.map(function (c) {
     return '<li class="cat-item" data-cat="' + c.id + '">'
@@ -123,21 +136,23 @@ function construirSidebar() {
   });
 }
 
-// Marca en negrita la categoría abierta dentro del sidebar
+// Marca en negrita (clase "activa") la categoría abierta dentro del sidebar,
+// y se la quita a todas las demás.
 function marcarCategoriaActiva() {
   listaCategorias.querySelectorAll(".cat-item").forEach(function (li) {
     li.classList.toggle("activa", li.dataset.cat === categoriaActual);
   });
 }
 
-// ===== 8. ESTRELLAS =====
-// Estrella dibujada a mano (no el carácter "★" de la fuente): así conocemos
+// ===== ESTRELLAS =====
+// Estrella dibujada a mano (no el carácter "★" de la fuente): así conozco
 // su geometría exacta y el recorte al 50% cae justo en la mitad real de la
 // figura, en vez de la mitad "visual" del cajón de texto (que con la fuente
 // dejaba la estrella casi completa en vez de a la mitad).
 const SVG_ESTRELLA = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>';
 
-// Dibuja 5 estrellas; cada una se llena 100%, 50% o 0% según la nota.
+// Dibuja 5 estrellas de solo lectura; cada una se llena 100%, 50% o 0%
+// según la nota "n". La uso en las tarjetas de la galería.
 function estrellasHTML(n) {
   let s = '<span class="estrellas-cont">';
   for (let i = 1; i <= 5; i++) {
@@ -150,7 +165,8 @@ function estrellasHTML(n) {
   return s + '</span>';
 }
 // Igual que la anterior, pero agrega dos zonas clickeables por estrella:
-// la mitad izquierda vale i-0.5 y la derecha vale i.
+// la mitad izquierda vale i-0.5 y la derecha vale i. La uso en el formulario
+// y en la ficha, donde sí se puede calificar haciendo clic.
 function estrellasEditablesHTML(n) {
   let s = '<span class="estrellas-cont editable">';
   for (let i = 1; i <= 5; i++) {
@@ -166,13 +182,16 @@ function estrellasEditablesHTML(n) {
   }
   return s + '</span>';
 }
+
 // ===== ETIQUETAS DE GÉNERO =====
-// Lectura (ficha): pastillas de color, sin interacción.
+// Lectura (ficha): pastillas de color, sin interacción. "nombres" es el
+// arreglo de nombres de género que trae la entrada (viene ya armado desde
+// el backend, ver adaptarEntrada más abajo).
 function etiquetasHTML(nombres) {
   if (!nombres || nombres.length === 0) return "—";
   return nombres.map(function (n) {
-    const tag = data.generos.find(function (g) { return g.nombre === n; });
-    const color = tag ? tag.color : "#e5e5e5";
+    const tag = generosDisponibles.find(function (g) { return g.nombre === n; });
+    const color = tag ? tag.color : "#e5e5e5";   // por si el género se borró y ya no está en la lista
     return '<span class="etiqueta-genero" style="background:' + color + '">' + n + '</span>';
   }).join(" ");
 }
@@ -180,8 +199,8 @@ function etiquetasHTML(nombres) {
 // Cada una trae su "×" para poder eliminarla del todo (no solo desmarcarla).
 function renderEtiquetasFormulario() {
   const cont = document.getElementById("f-etiquetas");
-  if (!cont) return;
-  cont.innerHTML = data.generos.map(function (g) {
+  if (!cont) return;   // el formulario todavía no está en pantalla
+  cont.innerHTML = generosDisponibles.map(function (g) {
     const activa = generosSeleccionados.indexOf(g.nombre) !== -1;
     return '<span class="etiqueta-genero' + (activa ? " activa" : " inactiva") + '" data-genero="'
       + g.nombre + '" style="background:' + g.color + '">' + g.nombre
@@ -190,43 +209,85 @@ function renderEtiquetasFormulario() {
   }).join("");
 }
 
-// Borra una etiqueta de género de la lista global y la saca de todas las
-// fichas (de cualquier categoría) que la tuvieran puesta.
-function eliminarGenero(nombre) {
-  const idx = data.generos.findIndex(function (g) { return g.nombre === nombre; });
-  if (idx === -1) return;
-  data.generos.splice(idx, 1);
-  categorias.forEach(function (c) {
-    data[c.id].forEach(function (p) {
-      if (p.generos) p.generos = p.generos.filter(function (g) { return g !== nombre; });
-    });
-  });
+// Borra una etiqueta de género DE RAÍZ en el backend (no solo la desmarca
+// acá). Gracias al ON DELETE CASCADE de la tabla puente, el backend ya se
+// encarga de sacarla de cualquier entrada que la tuviera puesta.
+async function eliminarGenero(nombre) {
+  const tag = generosDisponibles.find(function (g) { return g.nombre === nombre; });
+  if (!tag) return;
+  await fetch(API_URL + "/generos/" + tag.id, { method: "DELETE" });
+  await cargarGeneros();   // refresco mi copia local con la lista real, ya sin esa etiqueta
   const pos = generosSeleccionados.indexOf(nombre);
-  if (pos !== -1) generosSeleccionados.splice(pos, 1);
-  guardar();
+  if (pos !== -1) generosSeleccionados.splice(pos, 1);   // por si estaba elegida en el formulario abierto
   renderEtiquetasFormulario();
 }
 
-// ===== 9. ABRIR CATEGORÍA Y GALERÍA =====
+// ===== ABRIR CATEGORÍA Y GALERÍA =====
+// Se llama al hacer clic en una categoría del sidebar.
 function abrirCategoria(cat) {
   categoriaActual = cat;
   marcarCategoriaActiva();
   mostrarGaleria();
 }
 
-function mostrarGaleria() {
-  const items = data[categoriaActual];
+// "Traductor" entre lo que devuelve Postgres y lo que espera mi HTML:
+// - Postgres usa snake_case (titulo_es, fecha_vista) -> yo uso camelCase.
+// - director/estudio/anio/pais viven dentro de "detalles" (JSONB) -> los saco
+//   sueltos para no tener que tocar el resto del código que ya los usaba así.
+function adaptarEntrada(fila) {
+  const detalles = fila.detalles || {};
+  return {
+    id: fila.id,
+    titulo: fila.titulo,
+    tituloEs: fila.titulo_es,
+    director: detalles.director || "",
+    estudio: detalles.estudio || "",
+    anio: detalles.anio || "",
+    pais: detalles.pais || "",
+    generos: fila.generos || [],           // ya viene armado por el backend (JOIN + json_agg)
+    estrellas: Number(fila.estrellas) || 0,
+    sinopsis: fila.sinopsis,
+    comentario: fila.comentario,
+    portada: fila.portada,
+    fechaVista: fila.fecha_vista,
+    orden: fila.orden
+  };
+}
+
+// Le pregunta al backend todas las entradas de la categoría abierta y las
+// guarda (ya traducidas) en entradasActuales. La llamo cada vez que necesito
+// que la pantalla refleje lo último que hay en la base de datos.
+async function recargarEntradasActuales() {
+  const respuesta = await fetch(API_URL + "/entradas/" + categoriaActual);
+  const filas = await respuesta.json();
+  entradasActuales = filas.map(adaptarEntrada);
+}
+
+// Le pregunta al backend la lista completa de géneros (compartida por todas
+// las categorías) y la guarda en generosDisponibles.
+async function cargarGeneros() {
+  const respuesta = await fetch(API_URL + "/generos");
+  generosDisponibles = await respuesta.json();
+}
+
+// Dibuja la galería de tarjetas de la categoría abierta. Es "async" porque
+// tiene que ESPERAR la respuesta del backend (fetch) antes de poder mostrar
+// nada real - por eso el mensaje "Cargando..." que se ve un instante primero.
+async function mostrarGaleria() {
   tituloCategoria.textContent = titulos[categoriaActual];
-  contadorEntradas.textContent = "Entradas: [" + items.length + "]";
-  // El botón de agregar va arriba, con espacio propio para no quedar
-  // pegado a la línea del encabezado ni a la grilla.
+  galeria.innerHTML = '<p class="vacio">Cargando...</p>';
+
+  await recargarEntradasActuales();
+
+  contadorEntradas.textContent = "Entradas: [" + entradasActuales.length + "]";
   let html = '<button class="btn-retro" id="btn-agregar">+ agregar</button>';
 
-  if (items.length === 0) {
+  if (entradasActuales.length === 0) {
     html += '<p class="vacio">Todavía no hay nada aquí. ¡Pronto!</p>';
   } else {
-    html += '<div class="grid-cards">' + items.map(function (p, i) {
-      // data-index nos permite saber qué película se clickeó
+    html += '<div class="grid-cards">' + entradasActuales.map(function (p, i) {
+      // data-index nos permite saber qué película se clickeó (es la posición
+      // dentro de entradasActuales, no el id real de la base de datos).
       const fondo = p.portada
         ? 'style="background-image:url(\'' + p.portada + '\');background-size:cover;background-position:center"'
         : '';
@@ -247,16 +308,17 @@ function mostrarGaleria() {
   document.getElementById("btn-agregar").addEventListener("click", mostrarFormulario);
 }
 
-// ===== 10. FICHA (al hacer clic en una película) =====
+// ===== FICHA (al hacer clic en una película) =====
+// Dibuja el detalle completo de una entrada. "i" es su posición dentro de
+// entradasActuales (no su id real).
 function mostrarFicha(i) {
   fichaActual = i;
-  const p = data[categoriaActual][i];
+  const p = entradasActuales[i];
   const fondo = p.portada
     ? 'style="background-image:url(\'' + p.portada + '\');background-size:cover;background-position:center"'
     : '';
   // (p.director || "—") muestra un guion cuando el campo está vacío.
-  // Ficheros viejos guardaban "genero" (texto); los nuevos guardan "generos" (arreglo).
-  const generosFicha = p.generos || (p.genero ? [p.genero] : []);
+  const generosFicha = p.generos || [];
   galeria.innerHTML =
     '<div class="ficha-acciones">'
     +   '<button class="btn-retro" id="btn-volver">← volver</button>'
@@ -285,18 +347,16 @@ function mostrarFicha(i) {
     + '</details>';
 }
 
-// ===== 11. FORMULARIO PARA AGREGAR O EDITAR =====
-// Si se pasa "indice", el formulario se precarga con esa ficha y al guardar
-// se reemplaza en vez de crear una nueva.
+// ===== FORMULARIO PARA AGREGAR O EDITAR =====
+// Si se pasa "indice", el formulario se precarga con esa ficha (viene de
+// entradasActuales) y al guardar se reemplaza en vez de crear una nueva.
 function mostrarFormulario(indice) {
   indiceEditando = (typeof indice === "number") ? indice : null;
-  const editando = indiceEditando !== null ? data[categoriaActual][indiceEditando] : null;
+  const editando = indiceEditando !== null ? entradasActuales[indiceEditando] : null;
 
   portadaSubida = editando ? (editando.portada || "") : "";
   estrellasFormulario = editando ? (editando.estrellas || 0) : 0;
-  generosSeleccionados = editando
-    ? (editando.generos || (editando.genero ? [editando.genero] : [])).slice()
-    : [];
+  generosSeleccionados = editando ? (editando.generos || []).slice() : [];
 
   const val = function (campo) { return editando ? escaparAtributo(editando[campo]) : ""; };
   const texto = function (campo) { return editando ? (editando[campo] || "") : ""; };
@@ -348,7 +408,7 @@ function mostrarFormulario(indice) {
   });
   document.getElementById("f-genero-nuevo").addEventListener("keydown", function (e) {
     if (e.key === "Enter") {
-      e.preventDefault();
+      e.preventDefault();   // que Enter no intente enviar ningún formulario nativo
       document.getElementById("f-genero-agregar").click();
     }
   });
@@ -367,21 +427,25 @@ function quitarImagenFormulario() {
   document.getElementById("f-quitar-imagen").remove();
 }
 
-// Lee la imagen elegida y la convierte en texto (base64) para poder guardarla.
+// Lee la imagen elegida y la convierte en texto (base64) para poder
+// mandarla al backend igual que cualquier otro campo de texto.
 function leerArchivo(e) {
-  const archivo = e.target.files[0];        // el archivo que eligió la usuaria
+  const archivo = e.target.files[0];        // el archivo que elegí
   if (!archivo) return;
   const lector = new FileReader();          // el "lector de archivos" del navegador
   lector.onload = function () {             // cuando termina de leer...
-    portadaSubida = lector.result;          // guardamos la imagen convertida en texto
+    portadaSubida = lector.result;          // guardo la imagen convertida en texto
     document.getElementById("f-preview").innerHTML =
       '<img src="' + portadaSubida + '" style="max-width:100px;border:2px solid var(--tinta);border-radius:5px;margin-top:6px">';
     document.getElementById("f-archivo-nombre").textContent = archivo.name;
   };
-  lector.readAsDataURL(archivo);            // dispara la lectura (async)
+  lector.readAsDataURL(archivo);            // dispara la lectura (es asíncrona)
 }
 
-function guardarPelicula() {
+// Junta todo lo del formulario, lo manda al backend (crear o editar según
+// indiceEditando), y sincroniza los géneros elegidos. Es el corazón de
+// "Guardar".
+async function guardarPelicula() {
   const titulo = document.getElementById("f-titulo").value.trim();
   if (titulo === "") {
     document.getElementById("f-error").textContent = "El título no puede estar vacío.";
@@ -390,40 +454,101 @@ function guardarPelicula() {
   const entrada = {
     titulo: titulo,
     tituloEs: document.getElementById("f-tituloEs").value.trim(),
-    director: document.getElementById("f-director").value.trim(),
-    estudio: document.getElementById("f-estudio").value.trim(),
-    anio: document.getElementById("f-anio").value.trim(),
-    generos: generosSeleccionados.slice(),
-    pais: document.getElementById("f-pais").value.trim(),
-    fechaVista: document.getElementById("f-fechaVista").value.trim(),
+    portada: portadaSubida || document.getElementById("f-portada").value.trim(),
     estrellas: estrellasFormulario,     // se elige haciendo clic en las estrellas
     sinopsis: document.getElementById("f-sinopsis").value.trim(),
     comentario: document.getElementById("f-comentario").value.trim(),
-    // si subiste archivo, usa esa imagen; si no, usa el link que hayas pegado
-    portada: portadaSubida || document.getElementById("f-portada").value.trim()
+    fechaVista: document.getElementById("f-fechaVista").value.trim(),
+    orden: indiceEditando !== null ? entradasActuales[indiceEditando].orden : null,
+    // director/estudio/anio/pais van agrupados acá porque en la tabla
+    // "entradas" viven dentro de la columna JSONB "detalles" (Fase 6).
+    detalles: {
+      director: document.getElementById("f-director").value.trim(),
+      estudio: document.getElementById("f-estudio").value.trim(),
+      anio: document.getElementById("f-anio").value.trim(),
+      pais: document.getElementById("f-pais").value.trim()
+    }
   };
+
+  let id;                      // id real de la entrada (lo necesito para conectar géneros)
+  let generosAnteriores = [];  // qué géneros tenía ANTES de guardar (solo aplica si estoy editando)
+
   if (indiceEditando === null) {
-    data[categoriaActual].unshift(entrada);  // ficha nueva: va AL INICIO
+    // Ficha nueva: creo la entrada y leo la respuesta para saber qué id le
+    // asignó Postgres (todavía no lo sé, porque recién se está creando).
+    const respuesta = await fetch(API_URL + "/entradas/" + categoriaActual, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entrada)
+    });
+    const creada = await respuesta.json();
+    id = creada.id;
   } else {
-    data[categoriaActual][indiceEditando] = entrada;  // ficha existente: se reemplaza
+    // Ficha existente: ya sé el id, y guardo qué géneros tenía antes de
+    // pisarlos, para poder compararlos más abajo.
+    const anterior = entradasActuales[indiceEditando];
+    id = anterior.id;
+    generosAnteriores = anterior.generos || [];
+    await fetch(API_URL + "/entradas/" + categoriaActual + "/" + id, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entrada)
+    });
   }
-  guardar();
+
+  // Sincronizo los géneros comparando "lo que había antes" contra "lo que
+  // elegí ahora en el formulario": lo nuevo se conecta, lo que saqué se
+  // desconecta. (Uso "for...of" y no ".forEach" porque .forEach no espera
+  // los await de adentro - seguiría al siguiente antes de terminar el fetch.)
+  for (const nombre of generosSeleccionados) {
+    if (generosAnteriores.indexOf(nombre) === -1) {
+      const tag = generosDisponibles.find(function (g) { return g.nombre === nombre; });
+      if (tag) await fetch(API_URL + "/entradas/" + id + "/generos/" + tag.id, { method: "POST" });
+    }
+  }
+  for (const nombre of generosAnteriores) {
+    if (generosSeleccionados.indexOf(nombre) === -1) {
+      const tag = generosDisponibles.find(function (g) { return g.nombre === nombre; });
+      if (tag) await fetch(API_URL + "/entradas/" + id + "/generos/" + tag.id, { method: "DELETE" });
+    }
+  }
+
   mostrarGaleria();
 }
 
-// ===== 12. CLICS DENTRO DE LA GALERÍA (un solo detector para todo) =====
-galeria.addEventListener("click", function (e) {
+// ===== CLICS DENTRO DE LA GALERÍA (un solo detector para todo) =====
+// En vez de poner un addEventListener por cada botón/tarjeta (que además se
+// re-dibujan todo el tiempo y perderían sus listeners), pongo UN SOLO
+// detector en el contenedor "galeria" y me fijo QUÉ se clickeó mirando
+// e.target. Es "async" porque varias ramas de acá adentro usan await/fetch.
+galeria.addEventListener("click", async function (e) {
   // ¿clic en media/entera estrella? Puede ser en el formulario o en la ficha.
   const media = e.target.closest("[data-val]");
   if (media) {
     const contenedorForm = media.closest("#f-rating");
     if (contenedorForm) {
+      // Estrella del FORMULARIO: solo cambio la variable local, todavía no
+      // se manda nada al backend (eso pasa recién al apretar "Guardar").
       estrellasFormulario = parseFloat(media.dataset.val);
       contenedorForm.innerHTML = estrellasEditablesHTML(estrellasFormulario);
       return;
     }
-    data[categoriaActual][fichaActual].estrellas = parseFloat(media.dataset.val);
-    guardar();
+    // Clic en una estrella DENTRO de la ficha (no del formulario): mando la
+    // entrada completa con la nueva nota (el PUT reemplaza todos los campos,
+    // así que hay que reenviar los que no cambiaron para no perderlos).
+    const p = entradasActuales[fichaActual];
+    const entrada = {
+      titulo: p.titulo, tituloEs: p.tituloEs, portada: p.portada,
+      estrellas: parseFloat(media.dataset.val),
+      sinopsis: p.sinopsis, comentario: p.comentario, fechaVista: p.fechaVista, orden: p.orden,
+      detalles: { director: p.director, estudio: p.estudio, anio: p.anio, pais: p.pais }
+    };
+    await fetch(API_URL + "/entradas/" + categoriaActual + "/" + p.id, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entrada)
+    });
+    await recargarEntradasActuales();
     mostrarFicha(fichaActual);   // redibuja la ficha con la nota nueva
     return;
   }
@@ -431,12 +556,13 @@ galeria.addEventListener("click", function (e) {
   const quitar = e.target.closest(".etiqueta-quitar");
   if (quitar) {
     const nombre = quitar.dataset.quitar;
-    confirmarPersonalizado('¿Eliminar la etiqueta "' + nombre + '"? Se va a sacar de todas las fichas que la tengan.').then(function (ok) {
-      if (ok) eliminarGenero(nombre);
+    confirmarPersonalizado('¿Eliminar la etiqueta "' + nombre + '"? Se va a sacar de todas las fichas que la tengan.').then(async function (ok) {
+      if (ok) await eliminarGenero(nombre);
     });
     return;
   }
-  // ¿clic en una etiqueta del formulario? -> la prende/apaga
+  // ¿clic en una etiqueta del formulario? -> la prende/apaga (solo local,
+  // todavía no toca el backend - eso pasa al guardar la ficha).
   const etiqueta = e.target.closest(".etiqueta-genero");
   if (etiqueta && document.getElementById("f-etiquetas")) {
     const nombre = etiqueta.dataset.genero;
@@ -445,10 +571,11 @@ galeria.addEventListener("click", function (e) {
     renderEtiquetasFormulario();
     return;
   }
-  // ¿clic en "+ etiqueta"? -> crea (o reutiliza) la etiqueta escrita y la marca
+  // ¿clic en "+ etiqueta"? -> crea (o reutiliza) la etiqueta escrita en el
+  // backend y la marca como elegida.
   if (e.target.closest("#f-genero-agregar")) {
     const inputNuevo = document.getElementById("f-genero-nuevo");
-    const tag = obtenerOCrearGenero(inputNuevo.value);
+    const tag = await obtenerOCrearGenero(inputNuevo.value);
     if (tag) {
       if (generosSeleccionados.indexOf(tag.nombre) === -1) generosSeleccionados.push(tag.nombre);
       inputNuevo.value = "";
@@ -460,12 +587,13 @@ galeria.addEventListener("click", function (e) {
   if (e.target.closest("#btn-volver")) { mostrarGaleria(); return; }
   // ¿clic en "editar"? -> abre el formulario precargado con esta ficha
   if (e.target.closest("#btn-editar")) { mostrarFormulario(fichaActual); return; }
-  // ¿clic en "eliminar"? -> pide confirmación con el modal propio y borra la ficha
+  // ¿clic en "eliminar"? -> pide confirmación con el modal propio y borra la
+  // ficha DE VERDAD en el backend (no solo de la pantalla).
   if (e.target.closest("#btn-eliminar")) {
-    confirmarPersonalizado("¿Eliminar esta ficha? No se puede deshacer.").then(function (ok) {
+    confirmarPersonalizado("¿Eliminar esta ficha? No se puede deshacer.").then(async function (ok) {
       if (!ok) return;
-      data[categoriaActual].splice(fichaActual, 1);
-      guardar();
+      const id = entradasActuales[fichaActual].id;
+      await fetch(API_URL + "/entradas/" + categoriaActual + "/" + id, { method: "DELETE" });
       mostrarGaleria();
     });
     return;
@@ -475,7 +603,11 @@ galeria.addEventListener("click", function (e) {
   if (card) { mostrarFicha(parseInt(card.dataset.index)); return; }
 });
 
-// ===== 12a-bis. ARRASTRAR Y SOLTAR TARJETAS (reordenar la grilla) =====
+// ===== ARRASTRAR Y SOLTAR TARJETAS (reordenar la grilla) =====
+// Las 5 funciones de acá abajo se disparan en distintos momentos del
+// arrastre nativo del navegador (drag & drop de HTML5).
+
+// Se dispara al EMPEZAR a arrastrar una tarjeta: anoto cuál es.
 galeria.addEventListener("dragstart", function (e) {
   const card = e.target.closest(".card");
   if (!card) return;
@@ -484,43 +616,72 @@ galeria.addEventListener("dragstart", function (e) {
   e.dataTransfer.effectAllowed = "move";
 });
 
+// Se dispara TODO EL TIEMPO mientras paso arrastrando por encima de una
+// tarjeta. e.preventDefault() es obligatorio para que el navegador permita
+// soltar ahí (si no, por defecto no deja soltar en ningún lado).
 galeria.addEventListener("dragover", function (e) {
   const card = e.target.closest(".card");
   if (!card || indiceArrastrado === null) return;
-  e.preventDefault();   // necesario para que el navegador permita soltar acá
+  e.preventDefault();
   card.classList.add("sobre-destino");
 });
 
+// Se dispara al salir de encima de una tarjeta sin soltar ahí todavía.
 galeria.addEventListener("dragleave", function (e) {
   const card = e.target.closest(".card");
   if (card) card.classList.remove("sobre-destino");
 });
 
-galeria.addEventListener("drop", function (e) {
+// Se dispara al SOLTAR la tarjeta: acá es donde de verdad cambia el orden.
+// Es "async" porque después de reordenar localmente, tengo que avisarle al
+// backend la nueva posición de cada entrada, una por una.
+galeria.addEventListener("drop", async function (e) {
   const card = e.target.closest(".card");
   if (!card || indiceArrastrado === null) return;
   e.preventDefault();
   const indiceDestino = parseInt(card.dataset.index);
   if (indiceDestino !== indiceArrastrado) {
-    const items = data[categoriaActual];
-    const [movida] = items.splice(indiceArrastrado, 1);   // la saca de donde estaba
-    items.splice(indiceDestino, 0, movida);                // la mete en el lugar nuevo
-    guardar();
-    mostrarGaleria();
+    // Reordeno el arreglo local primero (igual que antes de conectar el
+    // backend): saco la tarjeta de donde estaba y la meto en su lugar nuevo.
+    const [movida] = entradasActuales.splice(indiceArrastrado, 1);
+    entradasActuales.splice(indiceDestino, 0, movida);
+
+    // Ahora recorro TODA la lista y le mando a cada entrada su nueva
+    // posición (su índice "i") como valor de "orden", para que el orden
+    // quede guardado de verdad en la base de datos y no solo en pantalla.
+    for (let i = 0; i < entradasActuales.length; i++) {
+      const p = entradasActuales[i];
+      const entrada = {
+        titulo: p.titulo, tituloEs: p.tituloEs, portada: p.portada,
+        estrellas: p.estrellas, sinopsis: p.sinopsis, comentario: p.comentario,
+        fechaVista: p.fechaVista, orden: i,
+        detalles: { director: p.director, estudio: p.estudio, anio: p.anio, pais: p.pais }
+      };
+      await fetch(API_URL + "/entradas/" + categoriaActual + "/" + p.id, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entrada)
+      });
+    }
+    await mostrarGaleria();
   }
   indiceArrastrado = null;
 });
 
+// Se dispara SIEMPRE al terminar el arrastre (se haya soltado bien o no).
+// Limpia las clases visuales por si el drop no llegó a completarse (se
+// soltó afuera de cualquier tarjeta, se canceló, etc.).
 galeria.addEventListener("dragend", function () {
-  // por si el drop no llegó a completarse (se soltó afuera, se canceló, etc.)
   galeria.querySelectorAll(".arrastrando, .sobre-destino").forEach(function (el) {
     el.classList.remove("arrastrando", "sobre-destino");
   });
   indiceArrastrado = null;
 });
 
-// ===== 12b. MODAL DE CONFIRMACIÓN (reemplaza el confirm() nativo) =====
-// Devuelve una promesa que resuelve en true/false según el botón clickeado.
+// ===== MODAL DE CONFIRMACIÓN (reemplaza el confirm() nativo del navegador) =====
+// Devuelve una promesa que resuelve en true/false según el botón que
+// clickeé, para poder usar ".then(...)" (o "await") en vez del feo
+// confirm() del navegador, y que combine con el estilo retro de la página.
 function confirmarPersonalizado(mensaje) {
   return new Promise(function (resolve) {
     const overlay = document.createElement("div");
@@ -537,7 +698,7 @@ function confirmarPersonalizado(mensaje) {
 
     function cerrar(resultado) {
       overlay.remove();
-      resolve(resultado);
+      resolve(resultado);   // acá es donde el .then(function(ok) {...}) recibe el true/false
     }
     overlay.querySelector("#modal-cancelar").addEventListener("click", function () { cerrar(false); });
     overlay.querySelector("#modal-confirmar").addEventListener("click", function () { cerrar(true); });
@@ -548,6 +709,13 @@ function confirmarPersonalizado(mensaje) {
   });
 }
 
-// ===== 13. ARRANQUE =====
-construirSidebar();
-abrirCategoria(categorias[0].id);  // la página carga directo en la primera categoría
+// ===== ARRANQUE =====
+// Tiene que ser async porque cargarGeneros() usa fetch/await: necesito
+// esperar a tener los géneros ANTES de dibujar cualquier ficha o formulario
+// que los use (si no, generosDisponibles estaría vacío la primera vez).
+async function iniciar() {
+  await cargarGeneros();
+  construirSidebar();
+  abrirCategoria(categorias[0].id);  // la página carga directo en la primera categoría
+}
+iniciar();
