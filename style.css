@@ -253,7 +253,7 @@ body {
 /* ---------- GALERÍA Y TARJETAS (portadas apaisadas) ---------- */
 .grid-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));  /* tarjetas más anchas */
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));  /* tarjetas más anchas, más "portada" */
   gap: 16px;
   margin-top: 14px;
 }
@@ -333,15 +333,40 @@ body {
   border-color: #a32d2d;
   box-shadow: 3px 3px 0 #a32d2d;
 }
-.ficha-cabecera { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+/* Portada de la ficha: banner ANCHO arriba de todo (antes era un recuadro
+   chico de 140x200 al lado del texto). aspect-ratio 3/1 = tres veces más
+   ancha que alta - si la quieres más o menos "achatada", ese es el número
+   a tocar (2/1 = más alta, 4/1 = más achatada todavía). */
 .ficha-portada {
-  width: 140px; height: 200px; flex: none;
+  position: relative;   /* para poder ubicar el "hint" de abajo encima suyo */
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  margin-top: 12px;
   border: 3px solid var(--tinta); border-radius: 6px;
   background-color: var(--crema);
   background-image: radial-gradient(var(--tinta) 1.1px, transparent 1.3px);
   background-size: 5px 5px;
+  /* touch-action: none evita que, en el celular, arrastrar la foto también
+     intente hacer scroll de la página a la vez. */
+  touch-action: none;
 }
-.ficha-datos { flex: 1; min-width: 200px; }
+/* Aviso chico de que la portada se puede arrastrar (solo aparece si hay
+   foto - lo decide script.js armando o no este <span>). */
+.ficha-portada-hint {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tinta);
+  background: rgba(244, 239, 226, 0.85);   /* var(--crema) con transparencia */
+  border: 2px solid var(--tinta);
+  border-radius: 4px;
+  padding: 2px 8px;
+  pointer-events: none;   /* que no estorbe el arrastre del mouse */
+  user-select: none;
+}
+.ficha-datos { margin-top: 14px; }
 .ficha-titulo { margin: 0; font-size: 20px; }
 .ficha-sub { margin: 0 0 8px; font-size: 13px; }
 .rating-edit { font-size: 28px; margin-bottom: 10px; }
@@ -441,6 +466,39 @@ body {
   font-size: 13px;
   color: var(--tinta);
   opacity: 0.75;
+}
+/* Separación entre el botón "Elegir imagen" (+ el preview, si hay imagen
+   subida) y el input de abajo donde se pega un link - sin esto quedaban
+   pegados, porque #f-preview no ocupa ningún alto cuando está vacío
+   (todavía sin imagen elegida). */
+#f-portada {
+  margin-top: 8px;
+}
+
+/* Miniatura de previsualización en el formulario, con el mismo punteado
+   semitransparente que las tarjetas y la ficha. Como una <img> no puede
+   mostrar un fondo CSS por debajo de sí misma, el punteado va en un ::after
+   aparte, posicionado justo encima gracias a "position: relative" acá y
+   "position: absolute" en el ::after. */
+.preview-imagen {
+  position: relative;
+  display: inline-block;
+  margin-top: 6px;
+}
+.preview-imagen img {
+  display: block;
+  max-width: 100px;
+  border: 2px solid var(--tinta);
+  border-radius: 5px;
+}
+.preview-imagen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 5px;
+  background-image: radial-gradient(rgba(20, 20, 20, 0.18) 1.1px, transparent 1.3px);
+  background-size: 5px 5px;
+  pointer-events: none;   /* que no bloquee ningún clic sobre la miniatura */
 }
 
 .form-acciones { display: flex; gap: 10px; margin-top: 14px; }

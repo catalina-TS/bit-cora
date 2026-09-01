@@ -250,7 +250,12 @@ function adaptarEntrada(fila) {
     comentario: fila.comentario,
     portada: fila.portada,
     fechaVista: fila.fecha_vista,
-    orden: fila.orden
+    orden: fila.orden,
+    // != null (no ===) para no confundir "0" (una posición válida, el borde
+    // de la imagen) con "no tiene valor todavía" - con || 50 el 0 se hubiera
+    // perdido, porque en JS "0" cuenta como falso.
+    posicionX: fila.posicion_x != null ? Number(fila.posicion_x) : 50,
+    posicionY: fila.posicion_y != null ? Number(fila.posicion_y) : 50
   };
 }
 
@@ -288,8 +293,14 @@ async function mostrarGaleria() {
     html += '<div class="grid-cards">' + entradasActuales.map(function (p, i) {
       // data-index nos permite saber qué película se clickeó (es la posición
       // dentro de entradasActuales, no el id real de la base de datos).
+      // Cuando hay foto, apilo DOS fondos en la misma declaración (separados
+      // por coma): el punteado va PRIMERO en la lista (queda arriba, semi-
+      // transparente gracias al rgba) y la foto real va SEGUNDA (queda
+      // debajo, se ve a través del punteado). Cada valor de
+      // background-size/position "hace pareja" con la imagen de fondo que
+      // está en su mismo orden dentro de la lista.
       const fondo = p.portada
-        ? 'style="background-image:url(\'' + p.portada + '\');background-size:cover;background-position:center"'
+        ? 'style="background-image:radial-gradient(rgba(20,20,20,0.18) 1.1px, transparent 1.3px), url(\'' + p.portada + '\');background-size:5px 5px, cover;background-position:0 0, center"'
         : '';
       const autor = p.director ? '<p class="card-autor">' + p.director + '</p>' : '';
       const sinopsis = p.sinopsis ? '<p class="card-sinopsis">' + p.sinopsis + '</p>' : '';
@@ -314,9 +325,17 @@ async function mostrarGaleria() {
 function mostrarFicha(i) {
   fichaActual = i;
   const p = entradasActuales[i];
+  // Mismo truco de "dos fondos apilados" que en la tarjeta de la galería:
+  // punteado semitransparente encima, foto real debajo. A diferencia de la
+  // tarjeta, acá la posición de la foto NO es fija ("center") - uso
+  // posicionX/posicionY, que la usuaria puede arrastrar (ver
+  // activarArrastrePortada, más abajo) y quedan guardados por entrada.
   const fondo = p.portada
-    ? 'style="background-image:url(\'' + p.portada + '\');background-size:cover;background-position:center"'
+    ? 'style="background-image:radial-gradient(rgba(20,20,20,0.18) 1.1px, transparent 1.3px), url(\'' + p.portada + '\');background-size:5px 5px, cover;background-position:0 0, ' + p.posicionX + '% ' + p.posicionY + '%"'
     : '';
+  // El "hint" solo se muestra si hay foto (si no hay nada, no tiene sentido
+  // invitar a arrastrar algo que no existe).
+  const hintArrastre = p.portada ? '<span class="ficha-portada-hint">Arrastra para ajustar</span>' : '';
   // (p.director || "—") muestra un guion cuando el campo está vacío.
   const generosFicha = p.generos || [];
   galeria.innerHTML =
@@ -325,9 +344,12 @@ function mostrarFicha(i) {
     +   '<button class="btn-retro" id="btn-editar">Editar</button>'
     +   '<button class="btn-retro btn-eliminar" id="btn-eliminar" title="Eliminar" aria-label="Eliminar">' + iconoPapelera + '</button>'
     + '</div>'
-    + '<div class="ficha-cabecera">'
-    +   '<div class="ficha-portada" ' + fondo + '></div>'
-    +   '<div class="ficha-datos">'
+    // La portada ya no va al lado del texto (era chica, 140x200) - ahora es
+    // un banner ancho arriba de todo, como una portada de verdad. Por eso
+    // salió del <div class="ficha-cabecera"> que las ponía una junto a la
+    // otra (ver style.css: esa clase ya no se usa más acá).
+    + '<div class="ficha-portada" ' + fondo + '>' + hintArrastre + '</div>'
+    + '<div class="ficha-datos">'
     +     '<h2 class="ficha-titulo">' + p.titulo + '</h2>'
     +     '<p class="ficha-sub">Título en español: ' + (p.tituloEs || "—") + '</p>'
     +     '<div class="rating-edit">' + estrellasEditablesHTML(p.estrellas) + '</div>'
@@ -337,7 +359,6 @@ function mostrarFicha(i) {
     +     '<p class="dato"><b>Género:</b> ' + etiquetasHTML(generosFicha) + '</p>'
     +     '<p class="dato"><b>País:</b> ' + (p.pais || "—") + '</p>'
     +     '<p class="dato"><b>Fecha en que la vi:</b> ' + (p.fechaVista || "—") + '</p>'
-    +   '</div>'
     + '</div>'
     + '<p class="ficha-label">Sinopsis</p>'
     + '<p class="ficha-texto">' + (p.sinopsis || "—") + '</p>'
@@ -345,6 +366,72 @@ function mostrarFicha(i) {
     +   '<summary>Mi comentario</summary>'
     +   '<div class="ficha-comentario">&gt; ' + (p.comentario || "—") + '</div>'
     + '</details>';
+
+  activarArrastrePortada(p);
+}
+
+// Deja arrastrar la portada de la ficha con el mouse (o el dedo, en
+// pantallas táctiles) para elegir qué parte de la foto se ve, y guarda esa
+// posición en el backend al soltar. Uso los "Pointer Events" del navegador
+// (pointerdown/pointermove/pointerup) porque, a diferencia de los eventos
+// de mouse normales, funcionan igual con mouse, dedo o lápiz óptico - no
+// tengo que escribir el mismo código dos veces.
+function activarArrastrePortada(p) {
+  const el = document.querySelector(".ficha-portada");
+  if (!el || !p.portada) return;   // sin foto, no hay nada que arrastrar
+
+  let arrastrando = false;
+  let inicioX = 0, inicioY = 0;         // dónde estaba el mouse al empezar a arrastrar
+  let posXInicio = 0, posYInicio = 0;   // posicionX/Y que tenía la entrada en ese momento
+
+  el.addEventListener("pointerdown", function (e) {
+    arrastrando = true;
+    inicioX = e.clientX;
+    inicioY = e.clientY;
+    posXInicio = p.posicionX;
+    posYInicio = p.posicionY;
+    // Sin esto, si arrastro rápido y el mouse sale del recuadro de la
+    // portada, dejaría de recibir los "pointermove" siguientes.
+    el.setPointerCapture(e.pointerId);
+  });
+
+  el.addEventListener("pointermove", function (e) {
+    if (!arrastrando) return;
+    const deltaX = e.clientX - inicioX;   // cuánto se movió el mouse en píxeles
+    const deltaY = e.clientY - inicioY;
+    // Quiero que la foto se mueva "con la mano": si arrastro el mouse hacia
+    // la derecha, se tiene que ver más de la parte IZQUIERDA de la imagen
+    // (como si estuviera empujando la foto hacia la derecha) - por eso el
+    // signo menos. Divido por el ancho/alto del recuadro para convertir
+    // píxeles arrastrados en porcentaje (el mismo lenguaje de posicionX/Y).
+    let nuevoX = posXInicio - (deltaX / el.offsetWidth) * 100;
+    let nuevoY = posYInicio - (deltaY / el.offsetHeight) * 100;
+    nuevoX = Math.max(0, Math.min(100, nuevoX));   // nunca menos de 0 ni más de 100
+    nuevoY = Math.max(0, Math.min(100, nuevoY));
+    p.posicionX = nuevoX;
+    p.posicionY = nuevoY;
+    // Actualizo solo el background-position (no toda la foto de nuevo) para
+    // que el arrastre se vea fluido, sin pedirle nada al backend todavía.
+    el.style.backgroundPosition = "0 0, " + nuevoX + "% " + nuevoY + "%";
+  });
+
+  el.addEventListener("pointerup", async function () {
+    if (!arrastrando) return;
+    arrastrando = false;
+    // Recién ACÁ, al soltar, aviso al backend - así no mando un fetch por
+    // cada pixelito que me muevo mientras arrastro, solo uno al final.
+    await fetch(API_URL + "/entradas/" + categoriaActual + "/" + p.id, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        titulo: p.titulo, tituloEs: p.tituloEs, portada: p.portada,
+        estrellas: p.estrellas, sinopsis: p.sinopsis, comentario: p.comentario,
+        fechaVista: p.fechaVista, orden: p.orden,
+        posicionX: p.posicionX, posicionY: p.posicionY,
+        detalles: { director: p.director, estudio: p.estudio, anio: p.anio, pais: p.pais }
+      })
+    });
+  });
 }
 
 // ===== FORMULARIO PARA AGREGAR O EDITAR =====
@@ -363,8 +450,12 @@ function mostrarFormulario(indice) {
   // El link de portada solo se precarga si era un link (no una imagen subida en base64).
   const linkPortada = (editando && editando.portada && editando.portada.indexOf("data:") !== 0)
     ? editando.portada : "";
+  // La envuelvo en un <div class="preview-imagen"> porque una <img> sola no
+  // puede mostrar un fondo CSS "debajo" de sí misma (ella ocupa todo su
+  // propio recuadro) - el punteado semitransparente se dibuja con ::after
+  // sobre este contenedor, ver style.css.
   const previewInicial = portadaSubida
-    ? '<img src="' + portadaSubida + '" style="max-width:100px;border:2px solid var(--tinta);border-radius:5px;margin-top:6px">'
+    ? '<div class="preview-imagen"><img src="' + portadaSubida + '"></div>'
     : "";
 
   // autocomplete="off" en cada input/textarea: sin esto, el navegador
@@ -441,7 +532,7 @@ function leerArchivo(e) {
   lector.onload = function () {             // cuando termina de leer...
     portadaSubida = lector.result;          // guardo la imagen convertida en texto
     document.getElementById("f-preview").innerHTML =
-      '<img src="' + portadaSubida + '" style="max-width:100px;border:2px solid var(--tinta);border-radius:5px;margin-top:6px">';
+      '<div class="preview-imagen"><img src="' + portadaSubida + '"></div>';
     document.getElementById("f-archivo-nombre").textContent = archivo.name;
   };
   lector.readAsDataURL(archivo);            // dispara la lectura (es asíncrona)
@@ -465,6 +556,11 @@ async function guardarPelicula() {
     comentario: document.getElementById("f-comentario").value.trim(),
     fechaVista: document.getElementById("f-fechaVista").value.trim(),
     orden: indiceEditando !== null ? entradasActuales[indiceEditando].orden : null,
+    // Igual que "orden": si estoy editando, mantengo la posición de recorte
+    // que ya tenía (no quiero que guardar el formulario descentre la foto
+    // sin querer); si es una ficha nueva, arranca centrada (50/50).
+    posicionX: indiceEditando !== null ? entradasActuales[indiceEditando].posicionX : 50,
+    posicionY: indiceEditando !== null ? entradasActuales[indiceEditando].posicionY : 50,
     // director/estudio/anio/pais van agrupados acá porque en la tabla
     // "entradas" viven dentro de la columna JSONB "detalles" (Fase 6).
     detalles: {
@@ -546,6 +642,7 @@ galeria.addEventListener("click", async function (e) {
       titulo: p.titulo, tituloEs: p.tituloEs, portada: p.portada,
       estrellas: parseFloat(media.dataset.val),
       sinopsis: p.sinopsis, comentario: p.comentario, fechaVista: p.fechaVista, orden: p.orden,
+      posicionX: p.posicionX, posicionY: p.posicionY,
       detalles: { director: p.director, estudio: p.estudio, anio: p.anio, pais: p.pais }
     };
     await fetch(API_URL + "/entradas/" + categoriaActual + "/" + p.id, {
@@ -660,6 +757,7 @@ galeria.addEventListener("drop", async function (e) {
         titulo: p.titulo, tituloEs: p.tituloEs, portada: p.portada,
         estrellas: p.estrellas, sinopsis: p.sinopsis, comentario: p.comentario,
         fechaVista: p.fechaVista, orden: i,
+        posicionX: p.posicionX, posicionY: p.posicionY,
         detalles: { director: p.director, estudio: p.estudio, anio: p.anio, pais: p.pais }
       };
       await fetch(API_URL + "/entradas/" + categoriaActual + "/" + p.id, {
