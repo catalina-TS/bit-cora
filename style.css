@@ -269,11 +269,55 @@ body {
 .card.arrastrando { opacity: 0.4; }
 .card.sobre-destino { outline: 3px dashed var(--tinta); outline-offset: 3px; }
 .portada {
+  position: relative;         /* para ubicar el iconito "mover" encima */
   aspect-ratio: 3 / 2;        /* portada apaisada, un poco más alta que 16:9 */
   border-bottom: 3px solid var(--tinta);
   background-color: var(--crema);
   background-image: radial-gradient(var(--tinta) 1.1px, transparent 1.3px);
   background-size: 5px 5px;
+  /* touch-action: none evita que, en el celular, arrastrar la foto (con el
+     modo "mover" prendido) también intente hacer scroll de la página. */
+  touch-action: none;
+}
+/* Iconito para reposicionar la foto: aparece solo al pasar el mouse por la
+   portada (en pantallas táctiles, sin hover, queda visible siempre). */
+.portada-mover {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(244, 239, 226, 0.9);   /* var(--crema) con transparencia */
+  border: 2px solid var(--tinta);
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  /* evita que arrastrar el iconito también scrollee la página en celular */
+  touch-action: none;
+}
+/* Estas mismas reglas valen para .ficha-portada (el banner grande de la
+   ficha): usa el mismo botón/modo "mover" que las portadas de la grilla. */
+.portada:hover .portada-mover,
+.ficha-portada:hover .portada-mover { opacity: 1; }
+@media (hover: none) {
+  .portada-mover { opacity: 1; }   /* sin mouse no hay "hover": lo dejo siempre visible */
+}
+/* Modo mover activo (se prende/apaga clickeando el iconito): la portada se
+   puede arrastrar, marcada con un borde punteado, y el iconito queda con
+   los colores invertidos (como "apretado") para que se note que sigue prendido. */
+.portada.modo-mover,
+.ficha-portada.modo-mover {
+  outline: 3px dashed var(--tinta);
+  outline-offset: -3px;
+}
+.portada.modo-mover .portada-mover,
+.ficha-portada.modo-mover .portada-mover {
+  opacity: 1;
+  background: var(--tinta);
+  color: var(--crema);   /* el svg usa stroke="currentColor" */
 }
 .card-info { padding: 9px; }
 .card-titulo { font-weight: 700; font-size: 15px; margin: 0 0 4px; }
@@ -338,7 +382,7 @@ body {
    ancha que alta - si la quieres más o menos "achatada", ese es el número
    a tocar (2/1 = más alta, 4/1 = más achatada todavía). */
 .ficha-portada {
-  position: relative;   /* para poder ubicar el "hint" de abajo encima suyo */
+  position: relative;   /* para poder ubicar el iconito "mover" encima */
   width: 100%;
   aspect-ratio: 3 / 1;
   margin-top: 12px;
@@ -346,25 +390,9 @@ body {
   background-color: var(--crema);
   background-image: radial-gradient(var(--tinta) 1.1px, transparent 1.3px);
   background-size: 5px 5px;
-  /* touch-action: none evita que, en el celular, arrastrar la foto también
-     intente hacer scroll de la página a la vez. */
+  /* touch-action: none evita que, en el celular, arrastrar la foto (con el
+     modo "mover" prendido) también intente hacer scroll de la página. */
   touch-action: none;
-}
-/* Aviso chico de que la portada se puede arrastrar (solo aparece si hay
-   foto - lo decide script.js armando o no este <span>). */
-.ficha-portada-hint {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--tinta);
-  background: rgba(244, 239, 226, 0.85);   /* var(--crema) con transparencia */
-  border: 2px solid var(--tinta);
-  border-radius: 4px;
-  padding: 2px 8px;
-  pointer-events: none;   /* que no estorbe el arrastre del mouse */
-  user-select: none;
 }
 .ficha-datos { margin-top: 14px; }
 .ficha-titulo { margin: 0; font-size: 20px; }

@@ -279,6 +279,7 @@ async function cargarGeneros() {
 // tiene que ESPERAR la respuesta del backend (fetch) antes de poder mostrar
 // nada real - por eso el mensaje "Cargando..." que se ve un instante primero.
 async function mostrarGaleria() {
+  portadaEnModoMover = null;   // se va a redibujar todo: no queda ninguna portada "en modo"
   tituloCategoria.textContent = titulos[categoriaActual];
   galeria.innerHTML = '<p class="vacio">Cargando...</p>';
 
@@ -299,14 +300,18 @@ async function mostrarGaleria() {
       // debajo, se ve a través del punteado). Cada valor de
       // background-size/position "hace pareja" con la imagen de fondo que
       // está en su mismo orden dentro de la lista.
+      // Mismo posicionX/posicionY que la ficha (antes era "center" fijo acá).
       const fondo = p.portada
-        ? 'style="background-image:radial-gradient(rgba(20,20,20,0.18) 1.1px, transparent 1.3px), url(\'' + p.portada + '\');background-size:5px 5px, cover;background-position:0 0, center"'
+        ? 'style="background-image:radial-gradient(rgba(20,20,20,0.18) 1.1px, transparent 1.3px), url(\'' + p.portada + '\');background-size:5px 5px, cover;background-position:0 0, ' + p.posicionX + '% ' + p.posicionY + '%"'
         : '';
       const autor = p.director ? '<p class="card-autor">' + p.director + '</p>' : '';
       const sinopsis = p.sinopsis ? '<p class="card-sinopsis">' + p.sinopsis + '</p>' : '';
       const fechaVista = p.fechaVista ? '<p class="card-fecha-vista">Fecha en que la vi: ' + p.fechaVista + '</p>' : '';
+      // La portada es "draggable=false" para que arrastrar el ícono (para
+      // reposicionar la foto) no dispare el arrastre nativo que reordena la
+      // tarjeta entera (ver "ARRASTRAR Y SOLTAR TARJETAS" más abajo).
       return '<div class="card" data-index="' + i + '" draggable="true">'
-        + '<div class="portada" ' + fondo + '></div>'
+        + '<div class="portada" draggable="false" ' + fondo + '>' + iconoMoverPortadaHTML(p) + '</div>'
         + '<div class="card-info"><p class="card-titulo">' + p.titulo + '</p>'
         + autor + sinopsis
         + '<div class="estrellas">' + estrellasHTML(p.estrellas) + '</div>'
@@ -317,25 +322,160 @@ async function mostrarGaleria() {
 
   galeria.innerHTML = html;
   document.getElementById("btn-agregar").addEventListener("click", mostrarFormulario);
+  // Una portada por tarjeta (las que no tienen foto, activarModoMoverPortada
+  // no hace nada con ellas).
+  document.querySelectorAll(".card .portada").forEach(function (el) {
+    const card = el.closest(".card");
+    const p = entradasActuales[parseInt(card.dataset.index)];
+    if (p) activarModoMoverPortada(el, p);
+  });
+}
+
+// Ícono de "mover": solo si hay foto (si no, no hay nada que arrastrar). Un
+// clic prende/apaga el "modo mover" (ver activarModoMoverPortada); el
+// arrastre de verdad se hace después, sobre la portada. stroke=currentColor
+// para poder invertir los colores por CSS cuando el modo está activo
+// (.modo-mover .portada-mover). La usan tanto la grilla como la ficha.
+function iconoMoverPortadaHTML(p) {
+  if (!p.portada) return '';
+  return '<span class="portada-mover">'
+    + '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">'
+    +   '<rect x="4" y="4" width="16" height="16" rx="2"/>'
+    + '</svg></span>';
+}
+
+// Portada que está "en modo mover" ahora mismo (o null si ninguna). Solo
+// puede haber una a la vez: entrar en modo en una desactiva la anterior.
+let portadaEnModoMover = null;
+
+function activarModoMover(el) {
+  if (portadaEnModoMover && portadaEnModoMover !== el) desactivarModoMover();
+  portadaEnModoMover = el;
+  el.classList.add("modo-mover");
+  // "draggable=false" en la portada no alcanza a bloquear el arrastre
+  // nativo de la tarjeta ancestro (es inconsistente entre navegadores) -
+  // así que mientras el modo esté prendido, directamente le apago el
+  // arrastre a LA TARJETA completa. Así no compite con el arrastre de la
+  // foto, que lo maneja este mismo archivo con Pointer Events. La portada
+  // de la FICHA no tiene tarjeta alrededor, por eso el chequeo de null.
+  const card = el.closest(".card");
+  if (card) card.draggable = false;
+}
+function desactivarModoMover() {
+  if (portadaEnModoMover) {
+    portadaEnModoMover.classList.remove("modo-mover");
+    const card = portadaEnModoMover.closest(".card");
+    if (card) card.draggable = true;   // vuelve a poder reordenarse
+  }
+  portadaEnModoMover = null;
+}
+// Clic en cualquier lado que NO sea la portada activa -> apaga el modo
+// (un solo listener global, no uno por portada).
+document.addEventListener("click", function (e) {
+  if (portadaEnModoMover && !portadaEnModoMover.contains(e.target)) desactivarModoMover();
+});
+
+// Prende el botón/modo "mover" de UNA portada (foto de fondo con
+// posicionX/posicionY guardados por entrada). La usan tanto las portadas
+// chicas de la grilla como el banner grande de la ficha - "el" es el
+// elemento con el fondo (".portada" o ".ficha-portada"), "p" es la
+// entrada correspondiente. El iconito solo prende/apaga el modo; el
+// arrastre de verdad se hace clickeando y moviendo sobre la portada
+// mientras está en modo. Clickear cualquier otra cosa apaga el modo (ver
+// el listener de "click" en document, más arriba).
+function activarModoMoverPortada(el, p) {
+  const manija = el.querySelector(".portada-mover");
+  if (!p.portada || !manija) return;   // sin foto, nada que arrastrar
+
+  // El iconito solo prende/apaga el modo, no arrastra nada él mismo. Corta
+  // el "pointerdown" para que NUNCA le llegue (por burbujeo) al listener
+  // de abajo que arrastra la portada - si no, ese listener capturaba el
+  // puntero (setPointerCapture) antes de que el clic del ícono terminara
+  // de procesarse, y el apagado no se disparaba bien.
+  manija.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+  manija.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (portadaEnModoMover === el) desactivarModoMover(); else activarModoMover(el);
+  });
+
+  let arrastrando = false, moved = false;
+  let inicioX = 0, inicioY = 0;
+  let posXInicio = 0, posYInicio = 0;
+
+  el.addEventListener("pointerdown", function (e) {
+    if (portadaEnModoMover !== el) return;   // fuera de modo, la portada no hace nada
+    arrastrando = true;
+    moved = false;
+    inicioX = e.clientX;
+    inicioY = e.clientY;
+    posXInicio = p.posicionX;
+    posYInicio = p.posicionY;
+    el.setPointerCapture(e.pointerId);
+  });
+
+  el.addEventListener("pointermove", function (e) {
+    if (!arrastrando) return;
+    const deltaX = e.clientX - inicioX;
+    const deltaY = e.clientY - inicioY;
+    if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) moved = true;
+    let nuevoX = posXInicio - (deltaX / el.offsetWidth) * 100;
+    let nuevoY = posYInicio - (deltaY / el.offsetHeight) * 100;
+    nuevoX = Math.max(0, Math.min(100, nuevoX));
+    nuevoY = Math.max(0, Math.min(100, nuevoY));
+    p.posicionX = nuevoX;
+    p.posicionY = nuevoY;
+    el.style.backgroundPosition = "0 0, " + nuevoX + "% " + nuevoY + "%";
+  });
+
+  el.addEventListener("pointerup", async function () {
+    if (!arrastrando) return;
+    arrastrando = false;
+    if (!moved) return;   // fue solo un clic: no le pego al backend por nada
+    // La posición queda guardada acá mismo (en el backend), así que la
+    // próxima vez que se cargue esta entrada (grilla o ficha) viene con la
+    // posición nueva - no hace falta nada más para que sea "permanente".
+    // Si el guardado falla, lo dejo bien visible en la consola: si no,
+    // quedaría la sensación de que se guardó cuando en realidad se va a
+    // perder al recargar.
+    const respuesta = await fetch(API_URL + "/entradas/" + categoriaActual + "/" + p.id, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        titulo: p.titulo, tituloEs: p.tituloEs, portada: p.portada,
+        estrellas: p.estrellas, sinopsis: p.sinopsis, comentario: p.comentario,
+        fechaVista: p.fechaVista, orden: p.orden,
+        posicionX: p.posicionX, posicionY: p.posicionY,
+        detalles: { director: p.director, estudio: p.estudio, anio: p.anio, pais: p.pais }
+      })
+    });
+    if (!respuesta.ok) {
+      console.error("No se pudo guardar la posición de la portada (respuesta " + respuesta.status + "). Al recargar, va a volver a la posición anterior.");
+    }
+  });
+
+  // Mientras esté en modo, ningún clic sobre la portada debe hacer su
+  // efecto normal (abrir la ficha en la grilla) - se corta acá antes de
+  // llegar al detector de clics de la galería.
+  el.addEventListener("click", function (e) {
+    if (portadaEnModoMover === el) e.stopPropagation();
+  });
 }
 
 // ===== FICHA (al hacer clic en una película) =====
 // Dibuja el detalle completo de una entrada. "i" es su posición dentro de
 // entradasActuales (no su id real).
 function mostrarFicha(i) {
+  portadaEnModoMover = null;   // se va a redibujar todo: no queda ninguna portada "en modo"
   fichaActual = i;
   const p = entradasActuales[i];
   // Mismo truco de "dos fondos apilados" que en la tarjeta de la galería:
   // punteado semitransparente encima, foto real debajo. A diferencia de la
   // tarjeta, acá la posición de la foto NO es fija ("center") - uso
-  // posicionX/posicionY, que la usuaria puede arrastrar (ver
-  // activarArrastrePortada, más abajo) y quedan guardados por entrada.
+  // posicionX/posicionY, que se ajustan con el mismo botón/modo "mover"
+  // que las portadas de la grilla (ver activarModoMoverPortada).
   const fondo = p.portada
     ? 'style="background-image:radial-gradient(rgba(20,20,20,0.18) 1.1px, transparent 1.3px), url(\'' + p.portada + '\');background-size:5px 5px, cover;background-position:0 0, ' + p.posicionX + '% ' + p.posicionY + '%"'
     : '';
-  // El "hint" solo se muestra si hay foto (si no hay nada, no tiene sentido
-  // invitar a arrastrar algo que no existe).
-  const hintArrastre = p.portada ? '<span class="ficha-portada-hint">Arrastra para ajustar</span>' : '';
   // (p.director || "—") muestra un guion cuando el campo está vacío.
   const generosFicha = p.generos || [];
   galeria.innerHTML =
@@ -348,11 +488,13 @@ function mostrarFicha(i) {
     // un banner ancho arriba de todo, como una portada de verdad. Por eso
     // salió del <div class="ficha-cabecera"> que las ponía una junto a la
     // otra (ver style.css: esa clase ya no se usa más acá).
-    + '<div class="ficha-portada" ' + fondo + '>' + hintArrastre + '</div>'
+    + '<div class="ficha-portada" ' + fondo + '>' + iconoMoverPortadaHTML(p) + '</div>'
     + '<div class="ficha-datos">'
     +     '<h2 class="ficha-titulo">' + p.titulo + '</h2>'
     +     '<p class="ficha-sub">Título en español: ' + (p.tituloEs || "—") + '</p>'
-    +     '<div class="rating-edit">' + estrellasEditablesHTML(p.estrellas) + '</div>'
+    // Estrellas de SOLO LECTURA acá: la calificación solo se cambia entrando
+    // a "Editar" (ver filaPropiedad("estrella", ...) en mostrarFormulario).
+    +     '<div class="rating-edit">' + estrellasHTML(p.estrellas) + '</div>'
     +     '<p class="dato"><b>Director/a:</b> ' + (p.director || "—") + '</p>'
     +     '<p class="dato"><b>Estudio:</b> ' + (p.estudio || "—") + '</p>'
     +     '<p class="dato"><b>Fecha:</b> ' + (p.anio || "—") + '</p>'
@@ -367,71 +509,8 @@ function mostrarFicha(i) {
     +   '<div class="ficha-comentario">&gt; ' + (p.comentario || "—") + '</div>'
     + '</details>';
 
-  activarArrastrePortada(p);
-}
-
-// Deja arrastrar la portada de la ficha con el mouse (o el dedo, en
-// pantallas táctiles) para elegir qué parte de la foto se ve, y guarda esa
-// posición en el backend al soltar. Uso los "Pointer Events" del navegador
-// (pointerdown/pointermove/pointerup) porque, a diferencia de los eventos
-// de mouse normales, funcionan igual con mouse, dedo o lápiz óptico - no
-// tengo que escribir el mismo código dos veces.
-function activarArrastrePortada(p) {
-  const el = document.querySelector(".ficha-portada");
-  if (!el || !p.portada) return;   // sin foto, no hay nada que arrastrar
-
-  let arrastrando = false;
-  let inicioX = 0, inicioY = 0;         // dónde estaba el mouse al empezar a arrastrar
-  let posXInicio = 0, posYInicio = 0;   // posicionX/Y que tenía la entrada en ese momento
-
-  el.addEventListener("pointerdown", function (e) {
-    arrastrando = true;
-    inicioX = e.clientX;
-    inicioY = e.clientY;
-    posXInicio = p.posicionX;
-    posYInicio = p.posicionY;
-    // Sin esto, si arrastro rápido y el mouse sale del recuadro de la
-    // portada, dejaría de recibir los "pointermove" siguientes.
-    el.setPointerCapture(e.pointerId);
-  });
-
-  el.addEventListener("pointermove", function (e) {
-    if (!arrastrando) return;
-    const deltaX = e.clientX - inicioX;   // cuánto se movió el mouse en píxeles
-    const deltaY = e.clientY - inicioY;
-    // Quiero que la foto se mueva "con la mano": si arrastro el mouse hacia
-    // la derecha, se tiene que ver más de la parte IZQUIERDA de la imagen
-    // (como si estuviera empujando la foto hacia la derecha) - por eso el
-    // signo menos. Divido por el ancho/alto del recuadro para convertir
-    // píxeles arrastrados en porcentaje (el mismo lenguaje de posicionX/Y).
-    let nuevoX = posXInicio - (deltaX / el.offsetWidth) * 100;
-    let nuevoY = posYInicio - (deltaY / el.offsetHeight) * 100;
-    nuevoX = Math.max(0, Math.min(100, nuevoX));   // nunca menos de 0 ni más de 100
-    nuevoY = Math.max(0, Math.min(100, nuevoY));
-    p.posicionX = nuevoX;
-    p.posicionY = nuevoY;
-    // Actualizo solo el background-position (no toda la foto de nuevo) para
-    // que el arrastre se vea fluido, sin pedirle nada al backend todavía.
-    el.style.backgroundPosition = "0 0, " + nuevoX + "% " + nuevoY + "%";
-  });
-
-  el.addEventListener("pointerup", async function () {
-    if (!arrastrando) return;
-    arrastrando = false;
-    // Recién ACÁ, al soltar, aviso al backend - así no mando un fetch por
-    // cada pixelito que me muevo mientras arrastro, solo uno al final.
-    await fetch(API_URL + "/entradas/" + categoriaActual + "/" + p.id, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        titulo: p.titulo, tituloEs: p.tituloEs, portada: p.portada,
-        estrellas: p.estrellas, sinopsis: p.sinopsis, comentario: p.comentario,
-        fechaVista: p.fechaVista, orden: p.orden,
-        posicionX: p.posicionX, posicionY: p.posicionY,
-        detalles: { director: p.director, estudio: p.estudio, anio: p.anio, pais: p.pais }
-      })
-    });
-  });
+  const elPortada = document.querySelector(".ficha-portada");
+  if (elPortada) activarModoMoverPortada(elPortada, p);
 }
 
 // ===== FORMULARIO PARA AGREGAR O EDITAR =====
@@ -623,35 +702,18 @@ async function guardarPelicula() {
 // detector en el contenedor "galeria" y me fijo QUÉ se clickeó mirando
 // e.target. Es "async" porque varias ramas de acá adentro usan await/fetch.
 galeria.addEventListener("click", async function (e) {
-  // ¿clic en media/entera estrella? Puede ser en el formulario o en la ficha.
+  // ¿clic en media/entera estrella? Solo puede venir del formulario: en la
+  // ficha las estrellas son de solo lectura (estrellasHTML, sin data-val) -
+  // para cambiar la calificación hay que entrar a "Editar".
   const media = e.target.closest("[data-val]");
   if (media) {
     const contenedorForm = media.closest("#f-rating");
     if (contenedorForm) {
-      // Estrella del FORMULARIO: solo cambio la variable local, todavía no
-      // se manda nada al backend (eso pasa recién al apretar "Guardar").
+      // Solo cambio la variable local, todavía no se manda nada al backend
+      // (eso pasa recién al apretar "Guardar").
       estrellasFormulario = parseFloat(media.dataset.val);
       contenedorForm.innerHTML = estrellasEditablesHTML(estrellasFormulario);
-      return;
     }
-    // Clic en una estrella DENTRO de la ficha (no del formulario): mando la
-    // entrada completa con la nueva nota (el PUT reemplaza todos los campos,
-    // así que hay que reenviar los que no cambiaron para no perderlos).
-    const p = entradasActuales[fichaActual];
-    const entrada = {
-      titulo: p.titulo, tituloEs: p.tituloEs, portada: p.portada,
-      estrellas: parseFloat(media.dataset.val),
-      sinopsis: p.sinopsis, comentario: p.comentario, fechaVista: p.fechaVista, orden: p.orden,
-      posicionX: p.posicionX, posicionY: p.posicionY,
-      detalles: { director: p.director, estudio: p.estudio, anio: p.anio, pais: p.pais }
-    };
-    await fetch(API_URL + "/entradas/" + categoriaActual + "/" + p.id, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(entrada)
-    });
-    await recargarEntradasActuales();
-    mostrarFicha(fichaActual);   // redibuja la ficha con la nota nueva
     return;
   }
   // ¿clic en la "×" de una etiqueta? -> la borra del todo (con confirmación)
@@ -700,7 +762,8 @@ galeria.addEventListener("click", async function (e) {
     });
     return;
   }
-  // ¿clic en una tarjeta? -> abre su ficha
+  // ¿clic en una tarjeta? -> abre su ficha (el clic en el iconito de mover
+  // la portada nunca llega hasta acá: corta su propia propagación)
   const card = e.target.closest(".card");
   if (card) { mostrarFicha(parseInt(card.dataset.index)); return; }
 });
@@ -711,6 +774,11 @@ galeria.addEventListener("click", async function (e) {
 
 // Se dispara al EMPEZAR a arrastrar una tarjeta: anoto cuál es.
 galeria.addEventListener("dragstart", function (e) {
+  // Si el arrastre empieza dentro de la portada (foto o el iconito de
+  // mover), NUNCA es para reordenar la tarjeta - es para reposicionar la
+  // foto. "draggable=false" en .portada ya debería bastar, pero esto lo
+  // deja garantizado sin depender de esa herencia.
+  if (e.target.closest(".portada")) { e.preventDefault(); return; }
   const card = e.target.closest(".card");
   if (!card) return;
   indiceArrastrado = parseInt(card.dataset.index);
