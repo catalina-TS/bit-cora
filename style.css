@@ -154,6 +154,16 @@ body {
   min-height: 1.3em;
   background: var(--crema-clara);
   text-align: left;
+  /* Un campo de formulario nunca debería "envolver" el texto a una segunda
+     línea como un párrafo - si no le digo esto, al llegar a cierto largo
+     el texto salta de línea y el cuadro (y toda la tarjeta) crecen de
+     golpe en altura mientras se sigue tipeando. white-space: nowrap lo
+     mantiene siempre en una sola línea, del mismo alto siempre; si el
+     texto llegara a ser más largo que el cuadro, overflow+ellipsis lo
+     corta con "..." en vez de desbordarse. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* Cursor parpadeante en el campo que se está "tipeando" ahora mismo (la
    clase .activo la prende/apaga script.js). */
