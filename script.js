@@ -7,13 +7,16 @@ const API_URL = "https://bit-cora-backend-hg16.onrender.com";
 // La lista maestra de secciones de mi bitácora. "id" es el valor técnico que
 // uso en las URLs del backend y como clave interna; "nombre" es lo que se ve
 // en pantalla. Si algún día agrego una categoría nueva, es acá donde la sumo.
+// "color" es el acento pastel de cada categoría en el sidebar cuando está
+// activa (mismos tonos que ya uso para las etiquetas de género, para que
+// todo se sienta parte de la misma paleta).
 const categorias = [
-  { id: "peliculas", nombre: "Películas" },
-  { id: "juegos",    nombre: "Juegos" },
-  { id: "series",    nombre: "Series" },
-  { id: "libros",    nombre: "Libros" },
-  { id: "mangas",    nombre: "Mangas" },
-  { id: "anime",     nombre: "Anime" }
+  { id: "peliculas", nombre: "Películas", color: "#cfe8f3" },
+  { id: "juegos",    nombre: "Juegos",    color: "#ffe3c2" },
+  { id: "series",    nombre: "Series",    color: "#d6e0ff" },
+  { id: "libros",    nombre: "Libros",    color: "#ffd3ea" },
+  { id: "mangas",    nombre: "Mangas",    color: "#ded4ff" },
+  { id: "anime",     nombre: "Anime",     color: "#d8f0d3" }
 ];
 
 // A partir de las categorías armamos los títulos "# películas", "# series"...
@@ -24,6 +27,51 @@ categorias.forEach(function (c) { titulos[c.id] = "# " + c.nombre.toLowerCase();
 // Colores pastel para las etiquetas de género; se van asignando en orden
 // a cada etiqueta nueva que se crea (y se repiten en ciclo si hay muchas).
 const paletaEtiquetas = ["#cfe8f3", "#ffe3c2", "#d6e0ff", "#ffd3ea", "#ded4ff", "#d8f0d3", "#ffe9a8"];
+
+// ===== CAMPOS "EXTRA" POR CATEGORÍA =====
+// Cada categoría puede pedir campos distintos (a un libro no le pido
+// "Director/a"). Todos estos campos viven dentro de la columna JSONB
+// "detalles" en Postgres (Fase 6) - por eso puedo inventar categorías
+// nuevas o cambiarles los campos sin tener que tocar la base de datos.
+// Cada campo: "id" (la clave dentro de detalles), "icono" (de
+// iconosPropiedad), "etiqueta" (lo que se ve), y opcionalmente
+// "tipo": "select" + "opciones" para un desplegable en vez de texto libre.
+const camposExtra = {
+  peliculas: [
+    { id: "director", icono: "persona", etiqueta: "Director/a" },
+    { id: "estudio", icono: "edificio", etiqueta: "Estudio" },
+    { id: "anio", icono: "calendario", etiqueta: "Fecha de publicación" },
+    { id: "pais", icono: "bandera", etiqueta: "País" }
+  ],
+  libros: [
+    { id: "autor", icono: "persona", etiqueta: "Autora/o" },
+    { id: "editorial", icono: "edificio", etiqueta: "Editorial" },
+    { id: "pais", icono: "bandera", etiqueta: "País" },
+    { id: "paginas", icono: "texto", etiqueta: "Páginas" },
+    { id: "primeraEdicion", icono: "calendario", etiqueta: "Fecha de publicación (1ª edición)" },
+    { id: "edicionLeida", icono: "calendario", etiqueta: "Fecha de la edición que leí" },
+    { id: "formato", icono: "etiqueta", etiqueta: "Formato", tipo: "select", opciones: ["Físico", "Digital"] }
+  ]
+};
+// Devuelve los campos extra de una categoría, o los de "peliculas" si
+// todavía no la personalicé (series, juegos, mangas, anime, por ahora).
+function camposExtraDe(categoria) {
+  return camposExtra[categoria] || camposExtra.peliculas;
+}
+
+// Etiqueta para "¿cuándo la consumí?" - cambia según la categoría (una
+// película se "ve", un libro se "lee"). Si alguna categoría no necesita
+// esta pregunta para nada, se le pone "null" y esa fila directamente no
+// aparece (ni en la ficha ni en el formulario).
+const etiquetaFechaVista = {
+  peliculas: "Fecha en que la vi",
+  libros: "Fecha en que lo leí"
+};
+// Devuelve la etiqueta de esta categoría, o "Fecha en que la vi" si todavía
+// no la personalicé (series, juegos, mangas, anime, por ahora).
+function etiquetaFechaVistaDe(categoria) {
+  return etiquetaFechaVista.hasOwnProperty(categoria) ? etiquetaFechaVista[categoria] : "Fecha en que la vi";
+}
 
 // ===== GUARDADO: YA NO ES localStorage =====
 // Antes acá vivían "datosPorDefecto" y la función guardar() que escribía en
@@ -44,7 +92,9 @@ async function obtenerOCrearGenero(nombre) {
     const respuesta = await fetch(API_URL + "/generos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombre: limpio, color: paletaEtiquetas[generosDisponibles.length % paletaEtiquetas.length] })
+      // "categoria" es la que hace que esta etiqueta quede propia de acá -
+      // el mismo nombre creado en otra categoría sería una fila aparte.
+      body: JSON.stringify({ nombre: limpio, color: paletaEtiquetas[generosDisponibles.length % paletaEtiquetas.length], categoria: categoriaActual })
     });
     tag = await respuesta.json();
     generosDisponibles.push(tag);
@@ -123,12 +173,39 @@ const iconosCategoria = {
 // para heredar el rojo definido en .btn-eliminar).
 const iconoPapelera = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
 
+// Cuántas entradas hay en cada categoría - se lo pido al backend con UNA
+// sola consulta (GROUP BY), en vez de traer la lista completa de las 6
+// categorías solo para contarlas. Lo uso para el numerito del sidebar.
+let conteos = {};
+async function cargarConteos() {
+  const respuesta = await fetch(API_URL + "/entradas-conteo");
+  const filas = await respuesta.json();
+  conteos = {};
+  filas.forEach(function (f) { conteos[f.categoria] = Number(f.cantidad); });
+}
+
+// Refresca los conteos y vuelve a dibujar el sidebar con los números al
+// día. Como reconstruir el sidebar borra la clase "activa", hay que volver
+// a marcarla después.
+async function actualizarSidebar() {
+  await cargarConteos();
+  construirSidebar();
+  marcarCategoriaActiva();
+}
+
 // Dibuja la lista "ARCHIVO" del sidebar a partir de "categorias", y le
-// engancha un clic a cada una para abrirla. Se llama una sola vez al arrancar.
+// engancha un clic a cada una para abrirla. Se llama cada vez que cambian
+// los conteos (ver actualizarSidebar), no solo una vez al arrancar.
 function construirSidebar() {
   listaCategorias.innerHTML = categorias.map(function (c) {
-    return '<li class="cat-item" data-cat="' + c.id + '">'
-      + '<span class="cat-icono">' + iconosCategoria[c.id] + '</span>' + titulos[c.id] + '</li>';
+    const cantidad = conteos.hasOwnProperty(c.id) ? conteos[c.id] : 0;
+    // --color-cat queda disponible para .cat-item.activa en el CSS (el
+    // acento pastel propio de esta categoría).
+    return '<li class="cat-item" data-cat="' + c.id + '" style="--color-cat:' + c.color + '">'
+      + '<span class="cat-icono">' + iconosCategoria[c.id] + '</span>'
+      + '<span class="cat-nombre">' + titulos[c.id] + '</span>'
+      + '<span class="cat-conteo">' + cantidad + '</span>'
+      + '</li>';
   }).join("");
 
   listaCategorias.querySelectorAll(".cat-item").forEach(function (li) {
@@ -222,28 +299,42 @@ async function eliminarGenero(nombre) {
   renderEtiquetasFormulario();
 }
 
+// Reemplaza el contenido de #galeria con un fundido corto, en vez de un
+// cambio instantáneo - la uso cada vez que cambio de "vista" (galería <->
+// ficha <-> formulario). El "void galeria.offsetWidth" obliga al navegador
+// a procesar el quite de la clase ANTES de volver a ponerla: si no, como
+// pasa todo en el mismo instante, el navegador no vuelve a disparar la
+// animación (la da por "ya hecha" de la vez anterior).
+function establecerGaleria(html) {
+  galeria.innerHTML = html;
+  galeria.classList.remove("entrada-vista");
+  void galeria.offsetWidth;
+  galeria.classList.add("entrada-vista");
+}
+
 // ===== ABRIR CATEGORÍA Y GALERÍA =====
 // Se llama al hacer clic en una categoría del sidebar.
-function abrirCategoria(cat) {
+async function abrirCategoria(cat) {
   categoriaActual = cat;
   marcarCategoriaActiva();
+  // Los géneros son independientes por categoría (Libros no ve las
+  // etiquetas de Películas, ni al revés) - por eso hay que volver a
+  // pedirlos cada vez que cambio de categoría, no solo una vez al arrancar.
+  await cargarGeneros();
   mostrarGaleria();
 }
 
 // "Traductor" entre lo que devuelve Postgres y lo que espera mi HTML:
 // - Postgres usa snake_case (titulo_es, fecha_vista) -> yo uso camelCase.
-// - director/estudio/anio/pais viven dentro de "detalles" (JSONB) -> los saco
-//   sueltos para no tener que tocar el resto del código que ya los usaba así.
+// - "detalles" (JSONB) lo dejo tal cual, como un objeto - ya no lo "aplano"
+//   en propiedades fijas como director/estudio, porque cada categoría tiene
+//   sus propias claves ahí adentro (ver camposExtra, más arriba).
 function adaptarEntrada(fila) {
-  const detalles = fila.detalles || {};
   return {
     id: fila.id,
     titulo: fila.titulo,
     tituloEs: fila.titulo_es,
-    director: detalles.director || "",
-    estudio: detalles.estudio || "",
-    anio: detalles.anio || "",
-    pais: detalles.pais || "",
+    detalles: fila.detalles || {},
     generos: fila.generos || [],           // ya viene armado por el backend (JOIN + json_agg)
     estrellas: Number(fila.estrellas) || 0,
     sinopsis: fila.sinopsis,
@@ -268,10 +359,10 @@ async function recargarEntradasActuales() {
   entradasActuales = filas.map(adaptarEntrada);
 }
 
-// Le pregunta al backend la lista completa de géneros (compartida por todas
-// las categorías) y la guarda en generosDisponibles.
+// Le pregunta al backend SOLO los géneros de la categoría abierta ahora
+// mismo (ya no son compartidos entre todas) y los guarda en generosDisponibles.
 async function cargarGeneros() {
-  const respuesta = await fetch(API_URL + "/generos");
+  const respuesta = await fetch(API_URL + "/generos/" + categoriaActual);
   generosDisponibles = await respuesta.json();
 }
 
@@ -283,7 +374,10 @@ async function mostrarGaleria() {
   tituloCategoria.textContent = titulos[categoriaActual];
   galeria.innerHTML = '<p class="vacio">Cargando...</p>';
 
-  await recargarEntradasActuales();
+  // Las entradas y los conteos del sidebar se piden EN PARALELO (Promise.all)
+  // en vez de uno después del otro - no dependen entre sí, así que no tiene
+  // sentido esperar a que termine el primero para recién pedir el segundo.
+  await Promise.all([recargarEntradasActuales(), actualizarSidebar()]);
 
   contadorEntradas.textContent = "Entradas: [" + entradasActuales.length + "]";
   let html = '<button class="btn-retro" id="btn-agregar">+ agregar</button>';
@@ -291,6 +385,14 @@ async function mostrarGaleria() {
   if (entradasActuales.length === 0) {
     html += '<p class="vacio">Todavía no hay nada aquí. ¡Pronto!</p>';
   } else {
+    // El "subtítulo" de la tarjeta (bajo el título) es el PRIMER campo extra
+    // de esta categoría - director para películas, autor para libros, etc.
+    // Se calcula una sola vez acá afuera porque es el mismo para todas las
+    // tarjetas de esta pasada (no cambia de una a otra, solo el valor).
+    const campoSubtitulo = camposExtraDe(categoriaActual)[0];
+    // Misma etiqueta que ya usan la ficha y el formulario ("vi" para
+    // películas, "leí" para libros) - antes acá quedó fija por error.
+    const etiquetaFV = etiquetaFechaVistaDe(categoriaActual);
     html += '<div class="grid-cards">' + entradasActuales.map(function (p, i) {
       // data-index nos permite saber qué película se clickeó (es la posición
       // dentro de entradasActuales, no el id real de la base de datos).
@@ -304,13 +406,18 @@ async function mostrarGaleria() {
       const fondo = p.portada
         ? 'style="background-image:radial-gradient(rgba(20,20,20,0.18) 1.1px, transparent 1.3px), url(\'' + p.portada + '\');background-size:5px 5px, cover;background-position:0 0, ' + p.posicionX + '% ' + p.posicionY + '%"'
         : '';
-      const autor = p.director ? '<p class="card-autor">' + p.director + '</p>' : '';
+      const valorSubtitulo = campoSubtitulo ? p.detalles[campoSubtitulo.id] : "";
+      const autor = valorSubtitulo ? '<p class="card-autor">' + valorSubtitulo + '</p>' : '';
       const sinopsis = p.sinopsis ? '<p class="card-sinopsis">' + p.sinopsis + '</p>' : '';
-      const fechaVista = p.fechaVista ? '<p class="card-fecha-vista">Fecha en que la vi: ' + p.fechaVista + '</p>' : '';
+      const fechaVista = (p.fechaVista && etiquetaFV) ? '<p class="card-fecha-vista">' + etiquetaFV + ': ' + p.fechaVista + '</p>' : '';
       // La portada es "draggable=false" para que arrastrar el ícono (para
       // reposicionar la foto) no dispare el arrastre nativo que reordena la
       // tarjeta entera (ver "ARRASTRAR Y SOLTAR TARJETAS" más abajo).
-      return '<div class="card" data-index="' + i + '" draggable="true">'
+      // animation-delay escalonado: cada tarjeta "aparece" un poquito
+      // después que la anterior (ver @keyframes aparecer-tarjeta en
+      // style.css). Lo tapo en 300ms para que con muchas entradas no se
+      // demore una eternidad en terminar de aparecer la última.
+      return '<div class="card" data-index="' + i + '" draggable="true" style="animation-delay:' + Math.min(i * 30, 300) + 'ms">'
         + '<div class="portada" draggable="false" ' + fondo + '>' + iconoMoverPortadaHTML(p) + '</div>'
         + '<div class="card-info"><p class="card-titulo">' + p.titulo + '</p>'
         + autor + sinopsis
@@ -320,7 +427,7 @@ async function mostrarGaleria() {
     }).join("") + '</div>';
   }
 
-  galeria.innerHTML = html;
+  establecerGaleria(html);
   document.getElementById("btn-agregar").addEventListener("click", mostrarFormulario);
   // Una portada por tarjeta (las que no tienen foto, activarModoMoverPortada
   // no hace nada con ellas).
@@ -445,7 +552,7 @@ function activarModoMoverPortada(el, p) {
         estrellas: p.estrellas, sinopsis: p.sinopsis, comentario: p.comentario,
         fechaVista: p.fechaVista, orden: p.orden,
         posicionX: p.posicionX, posicionY: p.posicionY,
-        detalles: { director: p.director, estudio: p.estudio, anio: p.anio, pais: p.pais }
+        detalles: p.detalles   // ya no hay que armarlo campo por campo: es el mismo objeto que ya tenía
       })
     });
     if (!respuesta.ok) {
@@ -476,9 +583,20 @@ function mostrarFicha(i) {
   const fondo = p.portada
     ? 'style="background-image:radial-gradient(rgba(20,20,20,0.18) 1.1px, transparent 1.3px), url(\'' + p.portada + '\');background-size:5px 5px, cover;background-position:0 0, ' + p.posicionX + '% ' + p.posicionY + '%"'
     : '';
-  // (p.director || "—") muestra un guion cuando el campo está vacío.
+  // Una fila "<b>Etiqueta:</b> valor" por cada campo extra de esta
+  // categoría (Director/a+Estudio+Fecha+País para películas, Autora/o+
+  // Editorial+País+Páginas+Formato para libros, etc.) - "—" si está vacío.
+  const filasExtraFicha = camposExtraDe(categoriaActual).map(function (campo) {
+    return '<p class="dato"><b>' + campo.etiqueta + ':</b> ' + (p.detalles[campo.id] || "—") + '</p>';
+  }).join("");
+  // "Fecha en que la vi/leí", con la etiqueta que le toque a esta categoría
+  // (o nada, si esa categoría no la usa - ver etiquetaFechaVista).
+  const etiquetaFV = etiquetaFechaVistaDe(categoriaActual);
+  const filaFechaVista = etiquetaFV
+    ? '<p class="dato"><b>' + etiquetaFV + ':</b> ' + (p.fechaVista || "—") + '</p>'
+    : "";
   const generosFicha = p.generos || [];
-  galeria.innerHTML =
+  const html =
     '<div class="ficha-acciones">'
     +   '<button class="btn-retro" id="btn-volver">← volver</button>'
     +   '<button class="btn-retro" id="btn-editar">Editar</button>'
@@ -495,12 +613,9 @@ function mostrarFicha(i) {
     // Estrellas de SOLO LECTURA acá: la calificación solo se cambia entrando
     // a "Editar" (ver filaPropiedad("estrella", ...) en mostrarFormulario).
     +     '<div class="rating-edit">' + estrellasHTML(p.estrellas) + '</div>'
-    +     '<p class="dato"><b>Director/a:</b> ' + (p.director || "—") + '</p>'
-    +     '<p class="dato"><b>Estudio:</b> ' + (p.estudio || "—") + '</p>'
-    +     '<p class="dato"><b>Fecha:</b> ' + (p.anio || "—") + '</p>'
+    +     filasExtraFicha
     +     '<p class="dato"><b>Género:</b> ' + etiquetasHTML(generosFicha) + '</p>'
-    +     '<p class="dato"><b>País:</b> ' + (p.pais || "—") + '</p>'
-    +     '<p class="dato"><b>Fecha en que la vi:</b> ' + (p.fechaVista || "—") + '</p>'
+    +     filaFechaVista
     + '</div>'
     + '<p class="ficha-label">Sinopsis</p>'
     + '<p class="ficha-texto">' + (p.sinopsis || "—") + '</p>'
@@ -508,6 +623,7 @@ function mostrarFicha(i) {
     +   '<summary>Mi comentario</summary>'
     +   '<div class="ficha-comentario">&gt; ' + (p.comentario || "—") + '</div>'
     + '</details>';
+  establecerGaleria(html);
 
   const elPortada = document.querySelector(".ficha-portada");
   if (elPortada) activarModoMoverPortada(elPortada, p);
@@ -526,6 +642,32 @@ function mostrarFormulario(indice) {
 
   const val = function (campo) { return editando ? escaparAtributo(editando[campo]) : ""; };
   const texto = function (campo) { return editando ? (editando[campo] || "") : ""; };
+  // Como val()/texto(), pero para leer adentro de "detalles" en vez de
+  // directo del objeto (autor, editorial, paginas... ver camposExtra).
+  const valDetalle = function (campo) { return editando ? escaparAtributo(editando.detalles[campo]) : ""; };
+
+  // Una fila de formulario por cada campo extra de esta categoría. Si el
+  // campo es "select" (como Formato: Físico/Digital), armo un <select> con
+  // sus opciones; si no, un <input> de texto normal, igual que los demás.
+  const filasExtraForm = camposExtraDe(categoriaActual).map(function (campo) {
+    let campoHtml;
+    if (campo.tipo === "select") {
+      const opcionesHtml = campo.opciones.map(function (op) {
+        const marcado = editando && editando.detalles[campo.id] === op ? " selected" : "";
+        return '<option value="' + op + '"' + marcado + '>' + op + '</option>';
+      }).join("");
+      campoHtml = '<select id="f-' + campo.id + '">' + opcionesHtml + '</select>';
+    } else {
+      campoHtml = '<input id="f-' + campo.id + '" type="text" autocomplete="off" value="' + valDetalle(campo.id) + '">';
+    }
+    return filaPropiedad(campo.icono, campo.etiqueta, campoHtml);
+  }).join("");
+  // "Fecha en que la vi/leí": con la etiqueta de esta categoría, o nada si
+  // esta categoría no la usa.
+  const etiquetaFVForm = etiquetaFechaVistaDe(categoriaActual);
+  const filaFechaVistaForm = etiquetaFVForm
+    ? filaPropiedad("calendario", etiquetaFVForm, '<input id="f-fechaVista" type="text" autocomplete="off" value="' + val("fechaVista") + '">')
+    : "";
   // El link de portada solo se precarga si era un link (no una imagen subida en base64).
   const linkPortada = (editando && editando.portada && editando.portada.indexOf("data:") !== 0)
     ? editando.portada : "";
@@ -542,21 +684,18 @@ function mostrarFormulario(indice) {
   // no es un dato mío que quede guardado en ningún lado (eso ya no pasa
   // desde que se borró localStorage), es el propio navegador ofreciéndome
   // autocompletar. Con esto se lo desactivo.
-  galeria.innerHTML =
+  const html =
     '<div class="formulario">'
     + filaPropiedad("texto", "Título", '<input id="f-titulo" type="text" autocomplete="off" value="' + val("titulo") + '">')
     + filaPropiedad("texto", "Título en español", '<input id="f-tituloEs" type="text" autocomplete="off" value="' + val("tituloEs") + '">')
-    + filaPropiedad("persona", "Director/a", '<input id="f-director" type="text" autocomplete="off" value="' + val("director") + '">')
-    + filaPropiedad("edificio", "Estudio", '<input id="f-estudio" type="text" autocomplete="off" value="' + val("estudio") + '">')
-    + filaPropiedad("calendario", "Fecha de publicación", '<input id="f-anio" type="text" autocomplete="off" value="' + val("anio") + '">')
+    + filasExtraForm
     + filaPropiedad("etiqueta", "Género",
         '<div class="etiquetas-form" id="f-etiquetas"></div>'
         + '<div class="etiqueta-nueva">'
         +   '<input id="f-genero-nuevo" type="text" autocomplete="off" placeholder="nueva etiqueta...">'
         +   '<button type="button" class="btn-retro" id="f-genero-agregar">+ etiqueta</button>'
         + '</div>')
-    + filaPropiedad("bandera", "País", '<input id="f-pais" type="text" autocomplete="off" value="' + val("pais") + '">')
-    + filaPropiedad("calendario", "Fecha en que la vi", '<input id="f-fechaVista" type="text" autocomplete="off" value="' + val("fechaVista") + '">')
+    + filaFechaVistaForm
     + filaPropiedad("estrella", "Calificación", '<div class="rating-edit" id="f-rating">' + estrellasEditablesHTML(estrellasFormulario) + '</div>')
     + filaPropiedad("parrafo", "Sinopsis", '<textarea id="f-sinopsis" rows="3" autocomplete="off">' + texto("sinopsis") + '</textarea>')
     + filaPropiedad("comentario", "Mi comentario", '<textarea id="f-comentario" rows="3" autocomplete="off">' + texto("comentario") + '</textarea>')
@@ -573,6 +712,7 @@ function mostrarFormulario(indice) {
     +   '<button class="btn-retro" id="f-cancelar">Cancelar</button>'
     + '</div>'
     + '</div>';
+  establecerGaleria(html);
 
   renderEtiquetasFormulario();
 
@@ -626,6 +766,20 @@ async function guardarPelicula() {
     document.getElementById("f-error").textContent = "El título no puede estar vacío.";
     return;
   }
+  // Armo "detalles" leyendo, uno por uno, los campos que le tocan a ESTA
+  // categoría (ver camposExtra) - así sirve igual para películas, libros, o
+  // cualquier categoría nueva que agregue después, sin tener que escribir
+  // un bloque de código distinto para cada una.
+  const detallesForm = {};
+  camposExtraDe(categoriaActual).forEach(function (campo) {
+    const el = document.getElementById("f-" + campo.id);
+    detallesForm[campo.id] = el ? el.value.trim() : "";
+  });
+  // El campo "f-fechaVista" a veces ni siquiera existe en el HTML (si esta
+  // categoría tiene "null" en etiquetaFechaVista) - por eso el chequeo
+  // antes de leer su .value.
+  const elFechaVista = document.getElementById("f-fechaVista");
+
   const entrada = {
     titulo: titulo,
     tituloEs: document.getElementById("f-tituloEs").value.trim(),
@@ -633,21 +787,14 @@ async function guardarPelicula() {
     estrellas: estrellasFormulario,     // se elige haciendo clic en las estrellas
     sinopsis: document.getElementById("f-sinopsis").value.trim(),
     comentario: document.getElementById("f-comentario").value.trim(),
-    fechaVista: document.getElementById("f-fechaVista").value.trim(),
+    fechaVista: elFechaVista ? elFechaVista.value.trim() : "",
     orden: indiceEditando !== null ? entradasActuales[indiceEditando].orden : null,
     // Igual que "orden": si estoy editando, mantengo la posición de recorte
     // que ya tenía (no quiero que guardar el formulario descentre la foto
     // sin querer); si es una ficha nueva, arranca centrada (50/50).
     posicionX: indiceEditando !== null ? entradasActuales[indiceEditando].posicionX : 50,
     posicionY: indiceEditando !== null ? entradasActuales[indiceEditando].posicionY : 50,
-    // director/estudio/anio/pais van agrupados acá porque en la tabla
-    // "entradas" viven dentro de la columna JSONB "detalles" (Fase 6).
-    detalles: {
-      director: document.getElementById("f-director").value.trim(),
-      estudio: document.getElementById("f-estudio").value.trim(),
-      anio: document.getElementById("f-anio").value.trim(),
-      pais: document.getElementById("f-pais").value.trim()
-    }
+    detalles: detallesForm
   };
 
   let id;                      // id real de la entrada (lo necesito para conectar géneros)
@@ -826,7 +973,7 @@ galeria.addEventListener("drop", async function (e) {
         estrellas: p.estrellas, sinopsis: p.sinopsis, comentario: p.comentario,
         fechaVista: p.fechaVista, orden: i,
         posicionX: p.posicionX, posicionY: p.posicionY,
-        detalles: { director: p.director, estudio: p.estudio, anio: p.anio, pais: p.pais }
+        detalles: p.detalles
       };
       await fetch(API_URL + "/entradas/" + categoriaActual + "/" + p.id, {
         method: "PUT",
@@ -880,13 +1027,73 @@ function confirmarPersonalizado(mensaje) {
   });
 }
 
+// ===== RELOJ DE LA BARRA DE TÍTULO =====
+// Puro adorno (como el reloj de la barra de tareas de un SO viejo), pero le
+// da a la página esa sensación de "está viva" sin que yo tenga que hacer
+// nada más después de armarlo - se actualiza solo, cada segundo.
+function actualizarReloj() {
+  const el = document.getElementById("reloj");
+  if (!el) return;
+  const ahora = new Date();
+  const dosDigitos = function (n) { return String(n).padStart(2, "0"); };
+  el.textContent = dosDigitos(ahora.getHours()) + ":" + dosDigitos(ahora.getMinutes()) + ":" + dosDigitos(ahora.getSeconds());
+}
+actualizarReloj();
+setInterval(actualizarReloj, 1000);
+
+// ===== PANTALLA DE ARRANQUE =====
+// Una animación corta, tipo terminal viejo, que se ve una vez al cargar la
+// página - sigue la misma temática de "computador retro" del resto del
+// sitio. No se cierra sola hasta que "promesaDatos" también haya
+// terminado (para no revelar una ventana vacía si el backend en Render
+// está recién despertando y tarda más de lo normal) - pero se puede saltar
+// con un clic en cualquier momento, sin esperar a nada.
+function mostrarArranque(promesaDatos) {
+  return new Promise(function (resolve) {
+    const lineas = ["Cargando ARCHIVO...", "Iniciando BITÁCORA.EXE..."];
+    const pantalla = document.getElementById("pantalla-arranque");
+    const texto = document.getElementById("texto-arranque");
+    let terminado = false;
+
+    function terminar() {
+      if (terminado) return;
+      terminado = true;
+      pantalla.classList.add("oculta");
+      setTimeout(function () { pantalla.remove(); }, 400);
+      resolve();
+    }
+    pantalla.addEventListener("click", terminar);   // saltar en cualquier momento
+
+    let i = 0;
+    function siguienteLinea() {
+      if (i >= lineas.length) {
+        texto.textContent += "\nListo.";
+        // Ya terminé de "tipear" el texto, pero no cierro todavía si los
+        // datos reales siguen en camino - recién cuando promesaDatos se
+        // resuelva, cierro (el cursor parpadeante de style.css disimula
+        // esa espera, como un prompt real quedándose pensando).
+        promesaDatos.then(terminar);
+        return;
+      }
+      texto.textContent += (i > 0 ? "\n" : "") + lineas[i];
+      i++;
+      setTimeout(siguienteLinea, 260);
+    }
+    siguienteLinea();
+  });
+}
+
 // ===== ARRANQUE =====
 // Tiene que ser async porque cargarGeneros() usa fetch/await: necesito
 // esperar a tener los géneros ANTES de dibujar cualquier ficha o formulario
 // que los use (si no, generosDisponibles estaría vacío la primera vez).
 async function iniciar() {
-  await cargarGeneros();
-  construirSidebar();
-  abrirCategoria(categorias[0].id);  // la página carga directo en la primera categoría
+  construirSidebar();   // primer dibujo, con los conteos en 0 - se actualizan solos en mostrarGaleria
+  // abrirCategoria ya se encarga de pedir los géneros de esa categoría -
+  // antes esta línea llamaba cargarGeneros() ella misma, pero en ese
+  // momento categoriaActual todavía era null (se define recién adentro de
+  // abrirCategoria), así que hubiera pedido "/generos/null".
+  const cargaInicial = abrirCategoria(categorias[0].id);  // la página carga directo en la primera categoría
+  await mostrarArranque(cargaInicial);
 }
 iniciar();
