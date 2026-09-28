@@ -1041,18 +1041,21 @@ function actualizarReloj() {
 actualizarReloj();
 setInterval(actualizarReloj, 1000);
 
-// ===== PANTALLA DE ARRANQUE =====
-// Una animación corta, tipo terminal viejo, que se ve una vez al cargar la
-// página - sigue la misma temática de "computador retro" del resto del
-// sitio. No se cierra sola hasta que "promesaDatos" también haya
-// terminado (para no revelar una ventana vacía si el backend en Render
-// está recién despertando y tarda más de lo normal) - pero se puede saltar
-// con un clic en cualquier momento, sin esperar a nada.
+// ===== PANTALLA DE ARRANQUE: simulación de inicio de sesión =====
+// Se ve una vez al cargar la página: el correo se "tipea" letra por letra,
+// la clave aparece en puntitos, y recién al final se "aprieta" el botón -
+// todo con calma, no de golpe. No cierra sola hasta que "promesaDatos"
+// también haya terminado (para no revelar una ventana vacía si el backend
+// en Render está recién despertando y tarda más de lo normal) - pero se
+// puede saltar con un clic en cualquier momento, sin esperar a nada.
 function mostrarArranque(promesaDatos) {
   return new Promise(function (resolve) {
-    const lineas = ["Cargando ARCHIVO...", "Iniciando BITÁCORA.EXE..."];
+    const correo = "malahierba@bitacora.com";
+    const cantidadPuntosClave = 10;
     const pantalla = document.getElementById("pantalla-arranque");
-    const texto = document.getElementById("texto-arranque");
+    const elCorreo = document.getElementById("login-correo");
+    const elClave = document.getElementById("login-clave");
+    const boton = document.getElementById("login-boton");
     let terminado = false;
 
     function terminar() {
@@ -1064,22 +1067,51 @@ function mostrarArranque(promesaDatos) {
     }
     pantalla.addEventListener("click", terminar);   // saltar en cualquier momento
 
+    // Paso 1: el correo, una letra a la vez, con calma (55ms entre letras -
+    // más lento se siente pesado, más rápido ya no se lee como "tipeado").
     let i = 0;
-    function siguienteLinea() {
-      if (i >= lineas.length) {
-        texto.textContent += "\nListo.";
-        // Ya terminé de "tipear" el texto, pero no cierro todavía si los
-        // datos reales siguen en camino - recién cuando promesaDatos se
-        // resuelva, cierro (el cursor parpadeante de style.css disimula
-        // esa espera, como un prompt real quedándose pensando).
-        promesaDatos.then(terminar);
+    function tipearCorreo() {
+      if (i >= correo.length) {
+        elCorreo.classList.remove("activo");
+        setTimeout(tipearClave, 300);   // pausa antes de pasar al siguiente campo
         return;
       }
-      texto.textContent += (i > 0 ? "\n" : "") + lineas[i];
+      elCorreo.textContent += correo[i];
       i++;
-      setTimeout(siguienteLinea, 260);
+      setTimeout(tipearCorreo, 55);
     }
-    siguienteLinea();
+
+    // Paso 2: la clave "oculta" - en vez de letras, van apareciendo puntos,
+    // uno por uno, más espaciados que el correo (se siente más "secreto").
+    function tipearClave() {
+      elClave.classList.add("activo");
+      let j = 0;
+      function siguientePunto() {
+        if (j >= cantidadPuntosClave) {
+          elClave.classList.remove("activo");
+          setTimeout(presionarBoton, 350);
+          return;
+        }
+        elClave.textContent += "•";
+        j++;
+        setTimeout(siguientePunto, 170);
+      }
+      siguientePunto();
+    }
+
+    // Paso 3: "aprieto" el botón (mismo gesto visual que cualquier
+    // .btn-retro al hacerle clic) y recién ahí cierro - si los datos reales
+    // todavía no están listos, promesaDatos.then(terminar) espera a que sí
+    // lo estén antes de abrir la página de verdad.
+    function presionarBoton() {
+      boton.classList.add("presionado");
+      setTimeout(function () {
+        promesaDatos.then(terminar);
+      }, 250);
+    }
+
+    elCorreo.classList.add("activo");
+    setTimeout(tipearCorreo, 400);   // una pausa breve antes de empezar, como si la tarjeta recién apareciera
   });
 }
 

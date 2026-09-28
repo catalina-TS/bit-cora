@@ -7,12 +7,23 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Pantalla de arranque: animación corta tipo terminal viejo al cargar la
-       página (la maneja mostrarArranque() en script.js). Se puede saltar
-       haciendo clic en cualquier parte. -->
+  <!-- Pantalla de arranque: simula un inicio de sesión, con mi misma
+       estética retro (no copio ningún programa real) - el correo se
+       "tipea" letra por letra y la clave aparece en puntitos, con calma,
+       antes de apretar "Sign in" y abrir la página de verdad. Lo maneja
+       mostrarArranque() en script.js. Se puede saltar con un clic. -->
   <div class="pantalla-arranque" id="pantalla-arranque">
-    <pre class="texto-arranque" id="texto-arranque"></pre>
-    <p class="arranque-hint">(clic para saltar)</p>
+    <div class="login-caja">
+      <div class="login-avatar">
+        <svg viewBox="0 0 18 18" width="34" height="34" fill="none" stroke="#141414" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="3"/><path d="M3 16c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg>
+      </div>
+      <p class="login-titulo">Iniciar sesión</p>
+      <p class="login-sub">Inicia sesión para entrar a BITÁCORA.EXE</p>
+      <div class="login-campo" id="login-correo"></div>
+      <div class="login-campo" id="login-clave"></div>
+      <button class="btn-retro login-boton" id="login-boton">Sign in</button>
+      <p class="arranque-hint">(clic para saltar)</p>
+    </div>
   </div>
 
   <!-- Ventana fija: es la página completa, no se abre desde un escritorio.

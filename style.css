@@ -91,48 +91,91 @@ body {
   padding: 28px;
 }
 
-/* ---------- PANTALLA DE ARRANQUE ----------
-   Fondo oscuro, texto tipo terminal viejo, encima de todo (z-index alto).
-   Se le agrega la clase .oculta para hacerla desaparecer con un fundido
-   (ver mostrarArranque() en script.js), y recién después se saca del DOM. */
+/* ---------- PANTALLA DE ARRANQUE: simulación de inicio de sesión ----------
+   El fondo es el mismo cuadriculado pastel que uso en <body> - como si esta
+   tarjeta de "login" flotara sobre el escritorio, antes de que se abra la
+   ventana de verdad. Se le agrega la clase .oculta para desaparecer con un
+   fundido (ver mostrarArranque() en script.js), y recién después se saca
+   del DOM. */
 .pantalla-arranque {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: var(--tinta);
-  color: #8fe6a0;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 10vh 8vw;
+  padding: 20px;
   cursor: var(--cursor-flecha), pointer;
   transition: opacity 0.4s ease;
+  background-color: var(--verde-pastel-claro);
+  background-image:
+    linear-gradient(45deg, var(--verde-pastel-oscuro) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--verde-pastel-oscuro) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--verde-pastel-oscuro) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--verde-pastel-oscuro) 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0px;
 }
 .pantalla-arranque.oculta {
   opacity: 0;
   pointer-events: none;
 }
-.texto-arranque {
-  font-family: 'Space Grotesk', monospace;
-  font-size: clamp(14px, 2vw, 20px);
-  white-space: pre-wrap;
-  margin: 0;
-  min-height: 1.4em;
+.login-caja {
+  background: var(--crema);
+  border: 3px solid var(--tinta);
+  border-radius: 14px;
+  box-shadow: 8px 8px 0 var(--tinta);
+  padding: 26px 28px;
+  width: 100%;
+  max-width: 280px;
+  text-align: center;
 }
-/* Cursor parpadeante al final del texto, como un prompt esperando que le
-   escriban algo - puramente decorativo. */
-.texto-arranque::after {
+.login-avatar {
+  width: 64px; height: 64px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: var(--crema-clara);
+  border: 3px solid var(--tinta);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-titulo { margin: 0 0 4px; font-weight: 700; font-size: 18px; }
+.login-sub { margin: 0 0 16px; font-size: 12px; opacity: 0.7; line-height: 1.4; }
+/* Los "campos" no son inputs de verdad - son divs donde script.js va
+   agregando texto letra por letra (correo) o puntito por puntito (clave),
+   con calma, para simular que alguien los está tipeando. */
+.login-campo {
+  border: 2px solid var(--tinta);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  min-height: 1.3em;
+  background: var(--crema-clara);
+  text-align: left;
+}
+/* Cursor parpadeante en el campo que se está "tipeando" ahora mismo (la
+   clase .activo la prende/apaga script.js). */
+.login-campo.activo::after {
   content: "▋";
+  margin-left: 1px;
   animation: parpadeo-cursor 0.8s steps(1) infinite;
 }
 @keyframes parpadeo-cursor {
   0%, 50% { opacity: 1; }
   50.01%, 100% { opacity: 0; }
 }
+.login-boton { width: 100%; margin-top: 4px; }
+/* Se agrega justo antes de abrir la página, para que se vea como si de
+   verdad lo hubieran apretado (mismo gesto que .btn-retro:active). */
+.login-boton.presionado {
+  box-shadow: none;
+  transform: translate(3px, 3px);
+}
 .arranque-hint {
-  margin: 18px 0 0;
-  font-size: 12px;
+  margin: 14px 0 0;
+  font-size: 11px;
   opacity: 0.45;
 }
 
